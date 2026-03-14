@@ -18,6 +18,7 @@ function baseState(): GameState {
     eventDeck: [],
     eventDiscard: [],
     lastEventName: null,
+    lastEventSummary: null,
     activeModifiers: [],
     grid,
     placedCards: [],

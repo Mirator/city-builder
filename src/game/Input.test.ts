@@ -16,6 +16,7 @@ function createState(): GameState {
     eventDeck: [],
     eventDiscard: [],
     lastEventName: null,
+    lastEventSummary: null,
     activeModifiers: [],
     grid: {
       maxSize: 10,

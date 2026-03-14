@@ -22,3 +22,18 @@ export interface EventDefinition {
   weightTags: EventWeightTag[];
   minTurn: number;
 }
+
+export interface EventQueuedModifierSummary {
+  effect: Resources;
+  remainingTurns: number;
+}
+
+export interface EventResolutionSummary {
+  id: string;
+  name: string;
+  description: string;
+  effectType: EventEffectType;
+  triggeredOnTurn: number;
+  immediateDelta: Resources;
+  queuedModifier: EventQueuedModifierSummary | null;
+}

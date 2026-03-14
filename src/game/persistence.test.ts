@@ -62,6 +62,25 @@ describe("run persistence", () => {
     expect(resumed.getState()).toEqual(game.getState());
   });
 
+  it("accepts legacy saves that do not include event summaries", () => {
+    const game = new Game(303);
+    const snapshot = game.toSnapshot();
+    const legacySnapshot = JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>;
+    const legacyState = legacySnapshot.state as Record<string, unknown>;
+    delete legacyState.lastEventSummary;
+
+    const storage = createStorageMock({
+      [RUN_SAVE_KEY]: JSON.stringify(legacySnapshot),
+    });
+
+    const loaded = loadSavedRun(storage);
+    expect(loaded).not.toBeNull();
+
+    const resumed = new Game(1);
+    expect(resumed.fromSnapshot(loaded!)).toBe(true);
+    expect(resumed.getState().lastEventSummary).toBeNull();
+  });
+
   it("clears the save slot", () => {
     const game = new Game(50);
     const storage = createStorageMock({

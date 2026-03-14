@@ -21,6 +21,7 @@ function createState(): GameState {
     eventDeck: [],
     eventDiscard: [],
     lastEventName: null,
+    lastEventSummary: null,
     activeModifiers: [],
     grid: {
       maxSize: 10,
@@ -101,6 +102,19 @@ function createUiState() {
   };
 }
 
+function createEventSummary(overrides: Partial<NonNullable<GameState["lastEventSummary"]>> = {}) {
+  return {
+    id: "tax_windfall",
+    name: "Tax Windfall",
+    description: "Unexpected tax surplus boosts the treasury.",
+    effectType: "immediate" as const,
+    triggeredOnTurn: 3,
+    immediateDelta: { gold: 8, population: 0, happiness: 0, pollution: 0 },
+    queuedModifier: null,
+    ...overrides,
+  };
+}
+
 describe("Renderer", () => {
   it("keeps computed layout inside viewport bounds and compact dock limits on desktop sizes", () => {
     const renderer = createRenderer();
@@ -125,8 +139,8 @@ describe("Renderer", () => {
       expect(rectWithin(layout.bottomDock, layout.viewport)).toBe(true);
       expect(rectWithin(layout.actionRow, layout.viewport)).toBe(true);
       expect(rectWithin(layout.handArea, layout.viewport)).toBe(true);
-      expect(layout.topHud.height).toBeGreaterThanOrEqual(80);
-      expect(layout.topHud.height).toBeLessThanOrEqual(112);
+      expect(layout.topHud.height).toBeGreaterThanOrEqual(132);
+      expect(layout.topHud.height).toBeLessThanOrEqual(176);
       expect(layout.bottomDock.height).toBeGreaterThanOrEqual(136);
       expect(layout.bottomDock.height).toBeLessThanOrEqual(188);
     }
@@ -235,6 +249,66 @@ describe("Renderer", () => {
 
     const texts = calls.map((call) => String(call[0]));
     expect(texts.some((value) => value.includes("Delta"))).toBe(false);
+  });
+
+  it("renders recent event details and immediate impact chips in the top banner", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    state.lastEventName = "Tax Windfall";
+    state.lastEventSummary = createEventSummary();
+    const ui = createUiState();
+
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const texts = context.fillText.mock.calls.map((call) => String(call[0]));
+    expect(texts).toContain("Tax Windfall");
+    expect(texts).toContain("Unexpected tax surplus boosts the treasury.");
+    expect(texts).toContain("Gold +8");
+  });
+
+  it("renders next-turn modifier copy in the event banner", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    state.lastEventName = "Housing Grant";
+    state.lastEventSummary = createEventSummary({
+      id: "housing_grant",
+      name: "Housing Grant",
+      description: "Temporary grants accelerate growth next turn.",
+      effectType: "turnModifier",
+      immediateDelta: { gold: 0, population: 0, happiness: 0, pollution: 0 },
+      queuedModifier: {
+        effect: { gold: 0, population: 4, happiness: 0, pollution: 0 },
+        remainingTurns: 1,
+      },
+    });
+    const ui = createUiState();
+
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const texts = context.fillText.mock.calls.map((call) => String(call[0]));
+    expect(texts).toContain("No immediate change");
+    expect(texts).toContain("Next turn: Pop +4 (1 turn)");
+  });
+
+  it("prioritizes action feedback over recent event details", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    state.lastEventName = "Tax Windfall";
+    state.lastEventSummary = createEventSummary();
+    const ui = {
+      ...createUiState(),
+      feedbackMessage: "Need more gold before placing.",
+    };
+
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const texts = context.fillText.mock.calls.map((call) => String(call[0]));
+    expect(texts).toContain("Placement blocked");
+    expect(texts).toContain("Need more gold before placing.");
+    expect(texts).not.toContain("Tax Windfall");
   });
 
   it("renders placement breakdown without tile label", () => {

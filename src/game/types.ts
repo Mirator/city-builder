@@ -1,3 +1,5 @@
+import type { EventResolutionSummary } from "../events/Event";
+
 export type ResourceKey = "gold" | "population" | "happiness" | "pollution";
 
 export interface Resources {
@@ -109,6 +111,7 @@ export interface GameState {
   eventDeck: string[];
   eventDiscard: string[];
   lastEventName: string | null;
+  lastEventSummary: EventResolutionSummary | null;
   activeModifiers: ActiveEventModifier[];
   grid: GridState;
   placedCards: PlacedCard[];

@@ -1,7 +1,7 @@
 import type { CardCategory, CardDefinition } from "../cards/Card";
-import type { EventDefinition, EventWeightTag } from "../events/Event";
+import type { EventDefinition, EventResolutionSummary, EventWeightTag } from "../events/Event";
 import type { GameConfig, GameState, Resources } from "../game/types";
-import { addResources, clampPollution } from "../utils/resource";
+import { addResources, clampPollution, formatResourceDelta, zeroResources } from "../utils/resource";
 import type { Rng } from "../utils/rng";
 import { shuffleWithRng } from "../utils/rng";
 import { getPlacedCards } from "../world/Grid";
@@ -57,34 +57,60 @@ export function triggerEvent(
   eventDatabase: Record<string, EventDefinition>,
   cardDatabase: Record<string, CardDefinition>,
   rng: Rng,
-): EventDefinition | null {
+): EventResolutionSummary | null {
   const eventId = drawEventId(state, eventDatabase, cardDatabase, rng);
   if (!eventId) {
+    state.lastEventName = null;
+    state.lastEventSummary = null;
     return null;
   }
 
   const event = eventDatabase[eventId];
   if (!event) {
+    state.lastEventName = null;
+    state.lastEventSummary = null;
     return null;
   }
 
-  state.lastEventName = event.name;
   const payload = scalePayloadForTurn(event.payload, state.turn);
+  let immediateDelta = zeroResources();
+  let queuedModifier: EventResolutionSummary["queuedModifier"] = null;
   if (event.effectType === "immediate") {
-    state.resources = clampPollution(addResources(state.resources, payload));
+    const before = { ...state.resources };
+    const after = clampPollution(addResources(state.resources, payload));
+    state.resources = after;
+    immediateDelta = diffResources(before, after);
   } else {
+    const effect = materializeResources(payload);
+    const remainingTurns = event.durationTurns ?? 1;
     state.activeModifiers.push({
       id: event.id,
       name: event.name,
-      effect: payload,
-      remainingTurns: event.durationTurns ?? 1,
+      effect,
+      remainingTurns,
     });
+    queuedModifier = {
+      effect,
+      remainingTurns,
+    };
   }
 
-  state.log.unshift(`Event: ${event.name} (${event.description})`);
+  const summary: EventResolutionSummary = {
+    id: event.id,
+    name: event.name,
+    description: event.description,
+    effectType: event.effectType,
+    triggeredOnTurn: state.turn,
+    immediateDelta,
+    queuedModifier,
+  };
+
+  state.lastEventName = summary.name;
+  state.lastEventSummary = summary;
+  state.log.unshift(formatEventLog(summary));
   state.log = state.log.slice(0, 10);
 
-  return event;
+  return summary;
 }
 
 function refillEventDeck(state: GameState, rng: Rng): void {
@@ -228,4 +254,86 @@ function scaleSignedValue(value: number | undefined, multiplier: number): number
     return undefined;
   }
   return Math.sign(value) * Math.round(Math.abs(value) * multiplier);
+}
+
+function materializeResources(payload: Partial<Resources>): Resources {
+  return {
+    gold: payload.gold ?? 0,
+    population: payload.population ?? 0,
+    happiness: payload.happiness ?? 0,
+    pollution: payload.pollution ?? 0,
+  };
+}
+
+function diffResources(before: Resources, after: Resources): Resources {
+  return {
+    gold: after.gold - before.gold,
+    population: after.population - before.population,
+    happiness: after.happiness - before.happiness,
+    pollution: after.pollution - before.pollution,
+  };
+}
+
+function formatEventLog(summary: EventResolutionSummary): string {
+  const parts = [`Event: ${summary.name}.`, summary.description];
+  const immediate = formatResourceList(summary.immediateDelta, false);
+  if (immediate) {
+    parts.push(`Impact: ${immediate}.`);
+  } else {
+    parts.push("Impact: no immediate change.");
+  }
+
+  if (summary.queuedModifier) {
+    parts.push(
+      `Next turn: ${formatResourceList(summary.queuedModifier.effect, false)} (${formatTurnCount(summary.queuedModifier.remainingTurns)}).`,
+    );
+  }
+
+  return parts.join(" ");
+}
+
+function formatResourceList(resources: Resources, compact: boolean): string | null {
+  const entries: string[] = [];
+  if (resources.gold !== 0) {
+    entries.push(`${resourceLabel("gold", compact)} ${formatResourceDelta(resources.gold)}`);
+  }
+  if (resources.population !== 0) {
+    entries.push(`${resourceLabel("population", compact)} ${formatResourceDelta(resources.population)}`);
+  }
+  if (resources.happiness !== 0) {
+    entries.push(`${resourceLabel("happiness", compact)} ${formatResourceDelta(resources.happiness)}`);
+  }
+  if (resources.pollution !== 0) {
+    entries.push(`${resourceLabel("pollution", compact)} ${formatResourceDelta(resources.pollution)}`);
+  }
+  return entries.length > 0 ? entries.join(", ") : null;
+}
+
+function resourceLabel(key: keyof Resources, compact: boolean): string {
+  if (compact) {
+    if (key === "population") {
+      return "Pop";
+    }
+    if (key === "happiness") {
+      return "Happ";
+    }
+    if (key === "pollution") {
+      return "Poll";
+    }
+  }
+
+  if (key === "gold") {
+    return "Gold";
+  }
+  if (key === "population") {
+    return "Population";
+  }
+  if (key === "happiness") {
+    return "Happiness";
+  }
+  return "Pollution";
+}
+
+function formatTurnCount(turns: number): string {
+  return turns === 1 ? "1 turn" : `${turns} turns`;
 }

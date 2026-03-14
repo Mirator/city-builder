@@ -4,20 +4,29 @@ import { GAME_CONFIG } from "./config";
 import { activeGridSize } from "../world/Grid";
 
 describe("Game integration", () => {
-  it("triggers an event every third turn", () => {
+  it("stores an event summary on event turns and clears it on later non-event turns", () => {
     const game = new Game(1234);
 
     game.endPlacementPhase();
     expect(game.getState().turn).toBe(2);
     expect(game.getState().lastEventName).toBeNull();
+    expect(game.getState().lastEventSummary).toBeNull();
 
     game.endPlacementPhase();
     expect(game.getState().turn).toBe(3);
     expect(game.getState().lastEventName).toBeNull();
+    expect(game.getState().lastEventSummary).toBeNull();
 
     game.endPlacementPhase();
     expect(game.getState().turn).toBe(4);
     expect(game.getState().lastEventName).not.toBeNull();
+    expect(game.getState().lastEventSummary).not.toBeNull();
+    expect(game.getState().lastEventName).toBe(game.getState().lastEventSummary?.name);
+
+    game.endPlacementPhase();
+    expect(game.getState().turn).toBe(5);
+    expect(game.getState().lastEventName).toBeNull();
+    expect(game.getState().lastEventSummary).toBeNull();
   });
 
   it("expands the grid after placing 2 infrastructure cards", () => {

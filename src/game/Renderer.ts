@@ -71,6 +71,22 @@ export interface CanvasUiRenderState {
   balanceReportOutput: string;
 }
 
+interface TopBannerChip {
+  text: string;
+  tone: "accent" | "positive" | "negative" | "neutral";
+}
+
+interface TopBannerModel {
+  label: string;
+  title: string;
+  detail: string;
+  chips: TopBannerChip[];
+  fill: string;
+  stroke: string;
+  titleColor: string;
+  detailColor: string;
+}
+
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly cardDatabase: Record<string, CardDefinition>;
@@ -201,6 +217,7 @@ export class Renderer {
     const resourceGap = 6;
     const inset = 10;
     const resourceHeight = 44;
+    const bannerGap = 14;
     const titleText = "Card City Builder";
 
     this.ctx.textAlign = "left";
@@ -333,14 +350,176 @@ export class Renderer {
     this.ctx.font = compactResources ? "600 11px Segoe UI" : "600 12px Segoe UI";
     this.ctx.fillText(trimForWidth(this.ctx, `Phase ${state.phase}`, statusRect.width - 16), statusRect.x + 8, statusRect.y + 24);
 
-    const alertText = ui.feedbackMessage ?? (state.lastEventName ? `Event: ${state.lastEventName}` : "No alerts.");
-    const combinedStatus = ui.feedbackMessage ? ui.feedbackMessage : `${ui.sessionStatus} | ${alertText}`;
-    const lineY = topHud.y + topHud.height - 10;
-    this.ctx.textBaseline = "alphabetic";
-    this.ctx.fillStyle = ui.feedbackMessage ? "#b3473e" : "#5b4d42";
-    this.ctx.font = "600 12px Segoe UI";
-    this.ctx.fillText(trimForWidth(this.ctx, combinedStatus, topHud.width - 20), topHud.x + 10, lineY);
+    const bannerRect: Rect = {
+      x: topHud.x + inset,
+      y: topHud.y + resourceHeight + bannerGap,
+      width: topHud.width - inset * 2,
+      height: topHud.height - resourceHeight - bannerGap - 10,
+    };
+    const banner = this.buildTopBanner(state, ui);
+    drawRoundedRect(this.ctx, bannerRect, 10, banner.fill, banner.stroke);
+
+    const titleLimit = bannerRect.width - 24;
+    this.ctx.fillStyle = "#846955";
+    this.ctx.font = "700 10px Segoe UI";
+    this.ctx.fillText(banner.label.toUpperCase(), bannerRect.x + 12, bannerRect.y + 8);
+
+    this.ctx.fillStyle = banner.titleColor;
+    this.ctx.font = "700 15px Segoe UI";
+    this.ctx.fillText(trimForWidth(this.ctx, banner.title, titleLimit), bannerRect.x + 12, bannerRect.y + 23);
+
+    this.ctx.fillStyle = banner.detailColor;
+    this.ctx.font = "600 11px Segoe UI";
+    this.ctx.fillText(trimForWidth(this.ctx, banner.detail, titleLimit), bannerRect.x + 12, bannerRect.y + 38);
+
+    this.drawTopBannerChips(bannerRect, banner.chips);
     this.ctx.textBaseline = "top";
+  }
+
+  private buildTopBanner(state: GameState, ui: CanvasUiRenderState): TopBannerModel {
+    if (ui.feedbackMessage) {
+      return {
+        label: "Action",
+        title: "Placement blocked",
+        detail: ui.feedbackMessage,
+        chips: [],
+        fill: "rgba(255, 240, 236, 0.95)",
+        stroke: "rgba(193, 92, 82, 0.62)",
+        titleColor: "#8e3e36",
+        detailColor: "#7b463f",
+      };
+    }
+
+    if (state.lastEventSummary) {
+      return {
+        label: "Recent Event",
+        title: state.lastEventSummary.name,
+        detail: state.lastEventSummary.description,
+        chips: this.buildEventBannerChips(state.lastEventSummary),
+        fill: "rgba(245, 233, 211, 0.92)",
+        stroke: "rgba(178, 142, 83, 0.54)",
+        titleColor: "#4c392b",
+        detailColor: "#695443",
+      };
+    }
+
+    if (state.lastEventName) {
+      return {
+        label: "Recent Event",
+        title: state.lastEventName,
+        detail: "Impact details unavailable for this saved run.",
+        chips: [],
+        fill: "rgba(245, 233, 211, 0.92)",
+        stroke: "rgba(178, 142, 83, 0.54)",
+        titleColor: "#4c392b",
+        detailColor: "#695443",
+      };
+    }
+
+    return {
+      label: "Status",
+      title: "No recent event",
+      detail: ui.sessionStatus,
+      chips: [],
+      fill: "rgba(240, 228, 206, 0.82)",
+      stroke: "rgba(145, 112, 78, 0.44)",
+      titleColor: "#4a3d33",
+      detailColor: "#645448",
+    };
+  }
+
+  private buildEventBannerChips(summary: GameState["lastEventSummary"]): TopBannerChip[] {
+    if (!summary) {
+      return [];
+    }
+
+    const chips: TopBannerChip[] = [];
+    if (summary.immediateDelta.gold !== 0) {
+      chips.push(this.createDeltaChip("Gold", summary.immediateDelta.gold));
+    }
+    if (summary.immediateDelta.population !== 0) {
+      chips.push(this.createDeltaChip("Pop", summary.immediateDelta.population));
+    }
+    if (summary.immediateDelta.happiness !== 0) {
+      chips.push(this.createDeltaChip("Happ", summary.immediateDelta.happiness));
+    }
+    if (summary.immediateDelta.pollution !== 0) {
+      chips.push(this.createDeltaChip("Poll", summary.immediateDelta.pollution));
+    }
+
+    if (chips.length === 0) {
+      chips.push({ text: "No immediate change", tone: "neutral" });
+    }
+
+    if (summary.queuedModifier) {
+      chips.push({
+        text: `Next turn: ${formatCompactResourceList(summary.queuedModifier.effect)} (${formatTurnCount(summary.queuedModifier.remainingTurns)})`,
+        tone: "accent",
+      });
+    }
+
+    return chips;
+  }
+
+  private createDeltaChip(label: string, value: number): TopBannerChip {
+    return {
+      text: `${label} ${formatResourceDelta(value)}`,
+      tone: value > 0 ? "positive" : value < 0 ? "negative" : "neutral",
+    };
+  }
+
+  private drawTopBannerChips(rect: Rect, chips: TopBannerChip[]): void {
+    if (chips.length === 0) {
+      return;
+    }
+
+    const paddingX = 10;
+    const gap = 8;
+    let x = rect.x + 12;
+    const y = rect.y + rect.height - 20;
+    for (const chip of chips) {
+      this.ctx.font = "700 10px Segoe UI";
+      const width = Math.min(rect.width - 24, Math.ceil(this.ctx.measureText(chip.text).width) + paddingX * 2);
+      if (x + width > rect.x + rect.width - 12) {
+        break;
+      }
+
+      const chipRect: Rect = {
+        x,
+        y,
+        width,
+        height: 18,
+      };
+      const fill = chip.tone === "positive"
+        ? "rgba(213, 238, 219, 0.96)"
+        : chip.tone === "negative"
+          ? "rgba(247, 221, 218, 0.96)"
+          : chip.tone === "accent"
+            ? "rgba(237, 225, 193, 0.96)"
+            : "rgba(234, 226, 214, 0.96)";
+      const stroke = chip.tone === "positive"
+        ? "rgba(86, 146, 101, 0.55)"
+        : chip.tone === "negative"
+          ? "rgba(178, 84, 74, 0.55)"
+          : chip.tone === "accent"
+            ? "rgba(168, 133, 72, 0.55)"
+            : "rgba(135, 116, 94, 0.44)";
+      const textColor = chip.tone === "positive"
+        ? "#2f7d44"
+        : chip.tone === "negative"
+          ? "#b34a45"
+          : chip.tone === "accent"
+            ? "#6c532d"
+            : "#5f4b3d";
+
+      drawRoundedRect(this.ctx, chipRect, 8, fill, stroke);
+      this.ctx.fillStyle = textColor;
+      this.ctx.textAlign = "left";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(trimForWidth(this.ctx, chip.text, chipRect.width - paddingX * 2), chipRect.x + paddingX, chipRect.y + chipRect.height / 2);
+      this.ctx.textBaseline = "top";
+      x += width + gap;
+    }
   }
 
   private drawBoard(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
@@ -1002,7 +1181,7 @@ export class Renderer {
 
     const padding = clamp(Math.round(Math.min(viewport.width, viewport.height) * 0.015), 10, 20);
     const gap = clamp(Math.round(Math.min(viewport.width, viewport.height) * 0.012), 8, 14);
-    let topHudHeight = clamp(Math.round(viewport.height * 0.12), 80, 112);
+    let topHudHeight = clamp(Math.round(viewport.height * 0.18), 132, 176);
     let bottomDockHeight = clamp(Math.round(viewport.height * 0.22), 136, 188);
     const minBoardHeight = 240;
     const availableHeight = viewport.height - padding * 2;
@@ -1011,7 +1190,7 @@ export class Renderer {
       const overflow = desired - availableHeight;
       const dockReduction = Math.max(0, Math.min(bottomDockHeight - 120, Math.round(overflow * 0.75)));
       bottomDockHeight -= dockReduction;
-      topHudHeight = Math.max(80, topHudHeight - (overflow - dockReduction));
+      topHudHeight = Math.max(120, topHudHeight - (overflow - dockReduction));
     }
 
     const topHud: Rect = {
@@ -1150,6 +1329,27 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
     lines.push(current);
   }
   return lines;
+}
+
+function formatCompactResourceList(resources: Resources): string {
+  const parts: string[] = [];
+  if (resources.gold !== 0) {
+    parts.push(`Gold ${formatResourceDelta(resources.gold)}`);
+  }
+  if (resources.population !== 0) {
+    parts.push(`Pop ${formatResourceDelta(resources.population)}`);
+  }
+  if (resources.happiness !== 0) {
+    parts.push(`Happ ${formatResourceDelta(resources.happiness)}`);
+  }
+  if (resources.pollution !== 0) {
+    parts.push(`Poll ${formatResourceDelta(resources.pollution)}`);
+  }
+  return parts.length > 0 ? parts.join(", ") : "No change";
+}
+
+function formatTurnCount(turns: number): string {
+  return turns === 1 ? "1 turn" : `${turns} turns`;
 }
 
 function reasonLabel(reason: PlacementPreview["reason"]): string {

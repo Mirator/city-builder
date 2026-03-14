@@ -100,6 +100,10 @@ export class Game {
     this.resetRng(normalizedSeed, normalizedCalls);
     this.state = cloneGameState(snapshot.state);
     this.state.rngSeed = normalizedSeed;
+    this.state.lastEventSummary = this.state.lastEventSummary ?? null;
+    if (this.state.lastEventSummary) {
+      this.state.lastEventName = this.state.lastEventSummary.name;
+    }
     this.clearActionFeedback();
     this.emit();
     return true;
@@ -235,9 +239,14 @@ export class Game {
     this.state.phase = "end";
 
     if (shouldTriggerEvent(this.state.turn, this.config)) {
-      triggerEvent(this.state, this.eventDatabase, this.cardDatabase, this.nextRandom);
+      const summary = triggerEvent(this.state, this.eventDatabase, this.cardDatabase, this.nextRandom);
+      if (!summary) {
+        this.state.lastEventName = null;
+        this.state.lastEventSummary = null;
+      }
     } else {
       this.state.lastEventName = null;
+      this.state.lastEventSummary = null;
     }
 
     const previousVictoryProgress = this.state.victoryProgress;
@@ -428,6 +437,7 @@ export class Game {
       eventDeck,
       eventDiscard: [],
       lastEventName: null,
+      lastEventSummary: null,
       activeModifiers: [],
       grid,
       placedCards: [],

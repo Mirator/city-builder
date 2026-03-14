@@ -19,6 +19,7 @@ function makeState(): GameState {
     eventDeck: [],
     eventDiscard: [],
     lastEventName: null,
+    lastEventSummary: null,
     activeModifiers: [{ id: "mod1", name: "Boost", effect: { gold: 5 }, remainingTurns: 1 }],
     grid,
     placedCards: [],

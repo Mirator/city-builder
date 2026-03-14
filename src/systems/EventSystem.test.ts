@@ -22,6 +22,7 @@ function createState(eventDeck: string[]): GameState {
     eventDeck: [...eventDeck],
     eventDiscard: [],
     lastEventName: null,
+    lastEventSummary: null,
     activeModifiers: [],
     grid,
     placedCards: [],
@@ -57,12 +58,26 @@ describe("EventSystem", () => {
     expect(state.eventDiscard).toEqual(["tax_windfall"]);
   });
 
+  it("records actual immediate deltas in the event summary", () => {
+    const state = createState(["tax_windfall"]);
+
+    const summary = triggerEvent(state, EVENT_DATABASE, CARD_DATABASE, () => 0);
+
+    expect(summary?.immediateDelta.gold).toBe(8);
+    expect(summary?.queuedModifier).toBeNull();
+    expect(state.lastEventSummary).toEqual(summary);
+    expect(state.lastEventName).toBe(summary?.name);
+  });
+
   it("applies and expires turn modifiers during resource resolution", () => {
     const state = createState(["housing_grant"]);
     const rng = createSeededRng(7);
 
-    triggerEvent(state, EVENT_DATABASE, CARD_DATABASE, rng);
+    const summary = triggerEvent(state, EVENT_DATABASE, CARD_DATABASE, rng);
     expect(state.activeModifiers).toHaveLength(1);
+    expect(summary?.immediateDelta.population).toBe(0);
+    expect(summary?.queuedModifier?.effect.population).toBe(4);
+    expect(summary?.queuedModifier?.remainingTurns).toBe(1);
 
     const result = resolveTurnResources(state, GAME_CONFIG, CARD_DATABASE);
     expect(result.modifiers.population).toBe(4);
@@ -77,6 +92,18 @@ describe("EventSystem", () => {
     triggerEvent(state, EVENT_DATABASE, CARD_DATABASE, () => 0);
 
     expect(state.resources.gold).toBe(32);
+    expect(state.lastEventSummary?.immediateDelta.gold).toBe(12);
+  });
+
+  it("reports clamped immediate deltas instead of raw payload values", () => {
+    const state = createState(["cleanup_grant"]);
+    state.turn = 6;
+    state.resources.pollution = 3;
+
+    const summary = triggerEvent(state, EVENT_DATABASE, CARD_DATABASE, () => 0);
+
+    expect(state.resources.pollution).toBe(0);
+    expect(summary?.immediateDelta.pollution).toBe(-3);
   });
 
   it("weights industry-focused events higher in industrial cities", () => {

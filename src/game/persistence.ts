@@ -123,6 +123,9 @@ function isGameState(value: unknown): value is GameState {
     isStringArray(value.eventDeck) &&
     isStringArray(value.eventDiscard) &&
     (value.lastEventName === null || isString(value.lastEventName)) &&
+    (value.lastEventSummary === undefined ||
+      value.lastEventSummary === null ||
+      isEventResolutionSummary(value.lastEventSummary)) &&
     Array.isArray(value.activeModifiers) &&
     isGridState(grid) &&
     isCursor(value.cursor) &&
@@ -187,6 +190,26 @@ function isResources(value: unknown): boolean {
     isFiniteNumber(value.happiness) &&
     isFiniteNumber(value.pollution)
   );
+}
+
+function isEventResolutionSummary(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isString(value.id) &&
+    isString(value.name) &&
+    isString(value.description) &&
+    (value.effectType === "immediate" || value.effectType === "turnModifier") &&
+    isFiniteNumber(value.triggeredOnTurn) &&
+    isResources(value.immediateDelta) &&
+    (value.queuedModifier === null || isQueuedModifierSummary(value.queuedModifier))
+  );
+}
+
+function isQueuedModifierSummary(value: unknown): boolean {
+  return isRecord(value) && isResources(value.effect) && isFiniteNumber(value.remainingTurns);
 }
 
 function isStringArray(value: unknown): value is string[] {
