@@ -25,6 +25,8 @@ interface HitRegion {
 interface CanvasLayout {
   viewport: Rect;
   topHud: Rect;
+  eventPanel: Rect;
+  resourcePanel: Rect;
   boardPanel: Rect;
   gridRect: Rect;
   bottomDock: Rect;
@@ -35,6 +37,8 @@ interface CanvasLayout {
 export interface LayoutSnapshot {
   viewport: Rect;
   topHud: Rect;
+  eventPanel: Rect;
+  resourcePanel: Rect;
   boardPanel: Rect;
   gridRect: Rect;
   bottomDock: Rect;
@@ -131,6 +135,8 @@ export class Renderer {
     this.ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
     this.drawBackdrop(layout.viewport);
     this.drawTopHud(state, ui, layout);
+    this.drawEventPanel(state, ui, layout);
+    this.drawResourcePanel(state, ui, layout);
     this.drawBoard(state, ui, layout);
     this.drawBottomDock(state, ui, layout);
     this.drawHoverPreview(state, ui, layout);
@@ -194,6 +200,8 @@ export class Renderer {
     return {
       viewport: { ...this.layout.viewport },
       topHud: { ...this.layout.topHud },
+      eventPanel: { ...this.layout.eventPanel },
+      resourcePanel: { ...this.layout.resourcePanel },
       boardPanel: { ...this.layout.boardPanel },
       gridRect: { ...this.layout.gridRect },
       bottomDock: { ...this.layout.bottomDock },
@@ -210,170 +218,240 @@ export class Renderer {
     this.ctx.fillRect(viewport.x, viewport.y, viewport.width, viewport.height);
   }
 
-  private drawTopHud(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
+  private drawTopHud(_state: GameState, _ui: CanvasUiRenderState, layout: CanvasLayout): void {
     const { topHud } = layout;
     drawRoundedRect(this.ctx, topHud, 14, "rgba(252, 245, 231, 0.95)", "rgba(148, 112, 78, 0.64)");
 
-    const resourceGap = 6;
-    const inset = 10;
-    const resourceHeight = 44;
-    const bannerGap = 14;
-    const titleText = "Card City Builder";
-
     this.ctx.textAlign = "left";
-    this.ctx.textBaseline = "top";
-    this.ctx.font = "700 30px Palatino Linotype";
-    const titleTextWidth = this.ctx.measureText(titleText).width;
-
-    let titleWidth = clamp(Math.ceil(titleTextWidth) + 16, 172, Math.round(topHud.width * 0.34));
-    let statusWidth = clamp(Math.round(topHud.width * 0.2), 156, 228);
-    let resourcesWidth = topHud.width - inset * 2 - titleWidth - statusWidth - resourceGap * 2;
-    const minimumResourcesWidth = 250;
-    const minimumTitleWidth = Math.ceil(titleTextWidth) + 12;
-
-    if (resourcesWidth < minimumResourcesWidth) {
-      const statusShrink = Math.min(minimumResourcesWidth - resourcesWidth, statusWidth - 144);
-      statusWidth -= statusShrink;
-      resourcesWidth += statusShrink;
-    }
-
-    if (resourcesWidth < minimumResourcesWidth) {
-      const titleShrink = Math.min(minimumResourcesWidth - resourcesWidth, titleWidth - minimumTitleWidth);
-      titleWidth -= titleShrink;
-      resourcesWidth += titleShrink;
-    }
-
-    resourcesWidth = Math.max(208, resourcesWidth);
-    const resourceCellWidth = Math.max(46, (resourcesWidth - resourceGap * 3) / 4);
-    const compactResources = resourceCellWidth < 138;
-    const resourceY = topHud.y + 8;
-
+    this.ctx.textBaseline = "middle";
     this.ctx.fillStyle = "#2f241d";
-    this.ctx.font = "700 30px Palatino Linotype";
-    this.ctx.fillText(titleText, topHud.x + inset, topHud.y + 6);
+    this.ctx.font = topHud.height < 58 ? "700 30px Palatino Linotype" : "700 32px Palatino Linotype";
+    this.ctx.fillText("Card City Builder", topHud.x + 16, topHud.y + topHud.height / 2 + 1);
+    this.ctx.textBaseline = "top";
+  }
 
-    this.ctx.fillStyle = "#5f4b3d";
-    this.ctx.font = "500 12px Segoe UI";
-    this.ctx.fillText(
-      trimForWidth(this.ctx, "Sustain a balanced city for three turns", titleWidth - 6),
-      topHud.x + inset,
-      topHud.y + 39,
+  private drawResourcePanel(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
+    const { resourcePanel } = layout;
+    drawRoundedRect(
+      this.ctx,
+      resourcePanel,
+      16,
+      "rgba(250, 244, 233, 0.94)",
+      "rgba(148, 112, 78, 0.5)",
     );
 
-    const deltas = {
-      gold: state.lastTurnBreakdown.final.gold,
-      population: state.lastTurnBreakdown.final.population,
-      happiness: state.lastTurnBreakdown.final.happiness,
-      pollution: state.lastTurnBreakdown.final.pollution,
-    };
+    const inset = clamp(Math.round(resourcePanel.width * 0.06), 12, 18);
+    const rowGap = 10;
+    const headerY = resourcePanel.y + inset;
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "top";
+    this.ctx.fillStyle = "#7c624d";
+    this.ctx.font = "700 10px Segoe UI";
+    this.ctx.fillText("RESOURCES", resourcePanel.x + inset, headerY);
+
     const resources = [
-      { key: "Gold", value: state.resources.gold, delta: deltas.gold },
-      { key: "Population", value: state.resources.population, delta: deltas.population },
-      { key: "Happiness", value: state.resources.happiness, delta: deltas.happiness },
-      { key: "Pollution", value: state.resources.pollution, delta: deltas.pollution },
+      { key: "Gold", value: state.resources.gold, delta: state.lastTurnBreakdown.final.gold, accent: true },
+      {
+        key: "Population",
+        value: state.resources.population,
+        delta: state.lastTurnBreakdown.final.population,
+        accent: false,
+      },
+      {
+        key: "Happiness",
+        value: state.resources.happiness,
+        delta: state.lastTurnBreakdown.final.happiness,
+        accent: false,
+      },
+      {
+        key: "Pollution",
+        value: state.resources.pollution,
+        delta: state.lastTurnBreakdown.final.pollution,
+        accent: false,
+      },
     ];
 
-    const resourcesStartX = topHud.x + inset + titleWidth + resourceGap;
-    for (let i = 0; i < resources.length; i += 1) {
-      const cellRect: Rect = {
-        x: resourcesStartX + i * (resourceCellWidth + resourceGap),
-        y: resourceY,
-        width: resourceCellWidth,
-        height: resourceHeight,
+    const cardsTop = headerY + 18;
+    const availableContentHeight = resourcePanel.height - inset * 2 - 18;
+    let statusHeight = clamp(Math.round(resourcePanel.height * 0.22), 76, 124);
+    const minimumStatusHeight = 64;
+    let cardsAreaHeight = availableContentHeight - statusHeight - 12;
+    const minimumCardsHeight = 4 * 24 + rowGap * 3;
+    if (cardsAreaHeight < minimumCardsHeight) {
+      statusHeight = Math.max(minimumStatusHeight, statusHeight - (minimumCardsHeight - cardsAreaHeight));
+      cardsAreaHeight = availableContentHeight - statusHeight - 12;
+    }
+    const cardHeight = Math.max(24, Math.floor((cardsAreaHeight - rowGap * 3) / 4));
+    const cardWidth = resourcePanel.width - inset * 2;
+
+    for (let index = 0; index < resources.length; index += 1) {
+      const rect: Rect = {
+        x: resourcePanel.x + inset,
+        y: cardsTop + index * (cardHeight + rowGap),
+        width: cardWidth,
+        height: cardHeight,
       };
-      drawRoundedRect(
-        this.ctx,
-        cellRect,
-        9,
-        "rgba(255, 251, 243, 0.9)",
-        i === 0 ? "rgba(196, 150, 70, 0.6)" : "rgba(145, 112, 78, 0.44)",
+      this.drawResourceCard(
+        rect,
+        resources[index].key,
+        resources[index].value,
+        resources[index].delta,
+        resources[index].accent,
       );
-      this.ctx.fillStyle = "#6f5645";
-      this.ctx.font = compactResources ? "600 9px Segoe UI" : "600 10px Segoe UI";
-      this.ctx.fillText(resources[i].key.toUpperCase(), cellRect.x + 8, cellRect.y + 6);
-
-      const valueText = String(resources[i].value);
-      const deltaText = formatResourceDelta(resources[i].delta);
-      const valueFont = compactResources ? "700 20px Segoe UI" : "700 24px Segoe UI";
-      const baseDeltaFont = compactResources ? "700 12px Segoe UI" : "700 14px Segoe UI";
-      const fallbackDeltaFont = compactResources ? "700 11px Segoe UI" : "700 12px Segoe UI";
-      const secondFallbackDeltaFont = compactResources ? "700 10px Segoe UI" : "700 11px Segoe UI";
-      const valueX = cellRect.x + 8;
-      const valueBaselineY = cellRect.y + resourceHeight - 9;
-
-      this.ctx.textBaseline = "alphabetic";
-      this.ctx.fillStyle = "#2f241d";
-      this.ctx.font = valueFont;
-      this.ctx.fillText(valueText, valueX, valueBaselineY);
-      const valueWidth = this.ctx.measureText(valueText).width;
-
-      let deltaFont = baseDeltaFont;
-      let deltaGap = compactResources ? 5 : 6;
-      this.ctx.font = deltaFont;
-      let deltaWidth = this.ctx.measureText(deltaText).width;
-      const deltaRightLimit = cellRect.x + cellRect.width - 8;
-
-      if (valueX + valueWidth + deltaGap + deltaWidth > deltaRightLimit) {
-        deltaFont = fallbackDeltaFont;
-        deltaGap = compactResources ? 4 : 5;
-        this.ctx.font = deltaFont;
-        deltaWidth = this.ctx.measureText(deltaText).width;
-      }
-      if (valueX + valueWidth + deltaGap + deltaWidth > deltaRightLimit) {
-        deltaFont = secondFallbackDeltaFont;
-        deltaGap = 3;
-        this.ctx.font = deltaFont;
-        deltaWidth = this.ctx.measureText(deltaText).width;
-      }
-
-      const deltaX = Math.min(valueX + valueWidth + deltaGap, deltaRightLimit - deltaWidth);
-      this.ctx.fillStyle =
-        resources[i].delta > 0 ? "#2f7d44" : resources[i].delta < 0 ? "#b34a45" : "#6f5645";
-      this.ctx.fillText(deltaText, deltaX, valueBaselineY);
-      this.ctx.textBaseline = "top";
     }
 
     const statusRect: Rect = {
-      x: topHud.x + topHud.width - inset - statusWidth,
-      y: topHud.y + 8,
-      width: statusWidth,
-      height: resourceHeight,
+      x: resourcePanel.x + inset,
+      y: cardsTop + 4 * (cardHeight + rowGap) - rowGap + 12,
+      width: resourcePanel.width - inset * 2,
+      height: statusHeight,
     };
-    drawRoundedRect(this.ctx, statusRect, 9, "rgba(240, 228, 206, 0.8)", "rgba(145, 112, 78, 0.44)");
-    this.ctx.fillStyle = "#2f241d";
-    this.ctx.font = compactResources ? "700 12px Segoe UI" : "700 13px Segoe UI";
-    this.ctx.fillText(
-      trimForWidth(this.ctx, `Turn ${state.turn} | Placements ${state.placementsRemaining}`, statusRect.width - 16),
-      statusRect.x + 8,
-      statusRect.y + 8,
+    drawRoundedRect(
+      this.ctx,
+      statusRect,
+      10,
+      "rgba(255, 249, 237, 0.64)",
+      "rgba(145, 112, 78, 0.34)",
     );
-    this.ctx.font = compactResources ? "600 11px Segoe UI" : "600 12px Segoe UI";
-    this.ctx.fillText(trimForWidth(this.ctx, `Phase ${state.phase}`, statusRect.width - 16), statusRect.x + 8, statusRect.y + 24);
 
-    const bannerRect: Rect = {
-      x: topHud.x + inset,
-      y: topHud.y + resourceHeight + bannerGap,
-      width: topHud.width - inset * 2,
-      height: topHud.height - resourceHeight - bannerGap - 10,
-    };
+    this.ctx.fillStyle = "#7a624e";
+    this.ctx.font = "700 10px Segoe UI";
+    this.ctx.fillText("RUN STATUS", statusRect.x + 10, statusRect.y + 8);
+
+    this.ctx.fillStyle = "#3d2f26";
+    this.ctx.font = "700 12px Segoe UI";
+    this.ctx.fillText(
+      trimForWidth(this.ctx, `Turn ${state.turn}`, statusRect.width - 20),
+      statusRect.x + 10,
+      statusRect.y + 24,
+    );
+    this.ctx.fillText(
+      trimForWidth(this.ctx, `Phase ${state.phase} | Placements ${state.placementsRemaining}`, statusRect.width - 20),
+      statusRect.x + 10,
+      statusRect.y + 40,
+    );
+    this.ctx.fillText(
+      trimForWidth(this.ctx, `State ${state.status}`, statusRect.width - 20),
+      statusRect.x + 10,
+      statusRect.y + 56,
+    );
+
+    this.ctx.fillStyle = "#5f4b3d";
+    this.ctx.font = "600 11px Segoe UI";
+    const statusLines = wrapText(this.ctx, ui.sessionStatus, statusRect.width - 20).slice(0, 2);
+    let statusY = statusRect.y + 74;
+    for (const line of statusLines) {
+      this.ctx.fillText(line, statusRect.x + 10, statusY);
+      statusY += 14;
+    }
+  }
+
+  private drawResourceCard(
+    rect: Rect,
+    label: string,
+    value: number,
+    delta: number,
+    accent: boolean,
+  ): void {
+    const compact = rect.width < 116 || rect.height < 76;
+    drawRoundedRect(
+      this.ctx,
+      rect,
+      10,
+      "rgba(255, 251, 243, 0.94)",
+      accent ? "rgba(196, 150, 70, 0.6)" : "rgba(145, 112, 78, 0.42)",
+    );
+    this.ctx.fillStyle = "#6f5645";
+    this.ctx.font = compact ? "600 9px Segoe UI" : "600 10px Segoe UI";
+    this.ctx.fillText(label.toUpperCase(), rect.x + 8, rect.y + 7);
+
+    const valueText = String(value);
+    const deltaText = formatResourceDelta(delta);
+    const valueFont = compact ? "700 20px Segoe UI" : "700 24px Segoe UI";
+    const baseDeltaFont = compact ? "700 12px Segoe UI" : "700 14px Segoe UI";
+    const fallbackDeltaFont = compact ? "700 11px Segoe UI" : "700 12px Segoe UI";
+    const secondFallbackDeltaFont = compact ? "700 10px Segoe UI" : "700 11px Segoe UI";
+    const valueX = rect.x + 8;
+    const valueBaselineY = rect.y + rect.height - 12;
+
+    this.ctx.textBaseline = "alphabetic";
+    this.ctx.fillStyle = "#2f241d";
+    this.ctx.font = valueFont;
+    this.ctx.fillText(valueText, valueX, valueBaselineY);
+    const valueWidth = this.ctx.measureText(valueText).width;
+
+    let deltaFont = baseDeltaFont;
+    let deltaGap = compact ? 5 : 6;
+    this.ctx.font = deltaFont;
+    let deltaWidth = this.ctx.measureText(deltaText).width;
+    const deltaRightLimit = rect.x + rect.width - 8;
+
+    if (valueX + valueWidth + deltaGap + deltaWidth > deltaRightLimit) {
+      deltaFont = fallbackDeltaFont;
+      deltaGap = compact ? 4 : 5;
+      this.ctx.font = deltaFont;
+      deltaWidth = this.ctx.measureText(deltaText).width;
+    }
+    if (valueX + valueWidth + deltaGap + deltaWidth > deltaRightLimit) {
+      deltaFont = secondFallbackDeltaFont;
+      deltaGap = 3;
+      this.ctx.font = deltaFont;
+      deltaWidth = this.ctx.measureText(deltaText).width;
+    }
+
+    const deltaX = Math.min(valueX + valueWidth + deltaGap, deltaRightLimit - deltaWidth);
+    this.ctx.fillStyle = delta > 0 ? "#2f7d44" : delta < 0 ? "#b34a45" : "#6f5645";
+    this.ctx.fillText(deltaText, deltaX, valueBaselineY);
+    this.ctx.textBaseline = "top";
+  }
+
+  private drawEventPanel(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
+    const { eventPanel } = layout;
     const banner = this.buildTopBanner(state, ui);
-    drawRoundedRect(this.ctx, bannerRect, 10, banner.fill, banner.stroke);
+    drawRoundedRect(this.ctx, eventPanel, 16, banner.fill, banner.stroke);
 
-    const titleLimit = bannerRect.width - 24;
+    const inset = clamp(Math.round(eventPanel.width * 0.055), 12, 18);
+    const contentWidth = eventPanel.width - inset * 2;
+    let cursorY = eventPanel.y + inset;
+
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "top";
     this.ctx.fillStyle = "#846955";
     this.ctx.font = "700 10px Segoe UI";
-    this.ctx.fillText(banner.label.toUpperCase(), bannerRect.x + 12, bannerRect.y + 8);
+    this.ctx.fillText(banner.label.toUpperCase(), eventPanel.x + inset, cursorY);
+    cursorY += 18;
 
     this.ctx.fillStyle = banner.titleColor;
-    this.ctx.font = "700 15px Segoe UI";
-    this.ctx.fillText(trimForWidth(this.ctx, banner.title, titleLimit), bannerRect.x + 12, bannerRect.y + 23);
+    this.ctx.font = eventPanel.width < 240 ? "700 18px Segoe UI" : "700 20px Segoe UI";
+    const titleLines = wrapText(this.ctx, banner.title, contentWidth).slice(0, 2);
+    for (const line of titleLines) {
+      this.ctx.fillText(line, eventPanel.x + inset, cursorY);
+      cursorY += 23;
+    }
 
+    cursorY += 4;
     this.ctx.fillStyle = banner.detailColor;
-    this.ctx.font = "600 11px Segoe UI";
-    this.ctx.fillText(trimForWidth(this.ctx, banner.detail, titleLimit), bannerRect.x + 12, bannerRect.y + 38);
+    this.ctx.font = "600 12px Segoe UI";
+    const detailRoom = Math.max(18, eventPanel.y + eventPanel.height - inset - cursorY - 20);
+    const maxDetailLines = Math.max(1, Math.floor(detailRoom / 16));
+    const detailLines = wrapText(this.ctx, banner.detail, contentWidth).slice(0, maxDetailLines);
+    for (const line of detailLines) {
+      this.ctx.fillText(line, eventPanel.x + inset, cursorY);
+      cursorY += 16;
+    }
 
-    this.drawTopBannerChips(bannerRect, banner.chips);
-    this.ctx.textBaseline = "top";
+    const chipsTop = cursorY + 8;
+    if (chipsTop < eventPanel.y + eventPanel.height - inset - 18) {
+      this.drawTopBannerChips(
+        {
+          x: eventPanel.x + inset,
+          y: chipsTop,
+          width: contentWidth,
+          height: eventPanel.y + eventPanel.height - inset - chipsTop,
+        },
+        banner.chips,
+      );
+    }
   }
 
   private buildTopBanner(state: GameState, ui: CanvasUiRenderState): TopBannerModel {
@@ -475,12 +553,18 @@ export class Renderer {
 
     const paddingX = 10;
     const gap = 8;
-    let x = rect.x + 12;
-    const y = rect.y + rect.height - 20;
+    const rowGap = 8;
+    const chipHeight = 20;
+    let x = rect.x;
+    let y = rect.y;
     for (const chip of chips) {
       this.ctx.font = "700 10px Segoe UI";
-      const width = Math.min(rect.width - 24, Math.ceil(this.ctx.measureText(chip.text).width) + paddingX * 2);
-      if (x + width > rect.x + rect.width - 12) {
+      const width = Math.min(rect.width, Math.ceil(this.ctx.measureText(chip.text).width) + paddingX * 2);
+      if (x + width > rect.x + rect.width) {
+        x = rect.x;
+        y += chipHeight + rowGap;
+      }
+      if (y + chipHeight > rect.y + rect.height) {
         break;
       }
 
@@ -488,7 +572,7 @@ export class Renderer {
         x,
         y,
         width,
-        height: 18,
+        height: chipHeight,
       };
       const fill = chip.tone === "positive"
         ? "rgba(213, 238, 219, 0.96)"
@@ -1181,7 +1265,7 @@ export class Renderer {
 
     const padding = clamp(Math.round(Math.min(viewport.width, viewport.height) * 0.015), 10, 20);
     const gap = clamp(Math.round(Math.min(viewport.width, viewport.height) * 0.012), 8, 14);
-    let topHudHeight = clamp(Math.round(viewport.height * 0.18), 132, 176);
+    let topHudHeight = clamp(Math.round(viewport.height * 0.07), 54, 66);
     let bottomDockHeight = clamp(Math.round(viewport.height * 0.22), 136, 188);
     const minBoardHeight = 240;
     const availableHeight = viewport.height - padding * 2;
@@ -1190,7 +1274,7 @@ export class Renderer {
       const overflow = desired - availableHeight;
       const dockReduction = Math.max(0, Math.min(bottomDockHeight - 120, Math.round(overflow * 0.75)));
       bottomDockHeight -= dockReduction;
-      topHudHeight = Math.max(120, topHudHeight - (overflow - dockReduction));
+      topHudHeight = Math.max(48, topHudHeight - (overflow - dockReduction));
     }
 
     const topHud: Rect = {
@@ -1206,15 +1290,87 @@ export class Renderer {
       height: bottomDockHeight,
     };
 
-    const boardAreaY = topHud.y + topHud.height + gap;
-    const boardAreaHeight = Math.max(minBoardHeight, bottomDock.y - gap - boardAreaY);
-    const boardSize = Math.min(boardAreaHeight, viewport.width - padding * 2);
-    const boardPanel: Rect = {
-      x: Math.round((viewport.width - boardSize) / 2),
-      y: Math.round(boardAreaY + (boardAreaHeight - boardSize) / 2),
-      width: Math.round(boardSize),
-      height: Math.round(boardSize),
+    const playfield: Rect = {
+      x: padding,
+      y: topHud.y + topHud.height + gap,
+      width: viewport.width - padding * 2,
+      height: Math.max(minBoardHeight, bottomDock.y - gap - (topHud.y + topHud.height + gap)),
     };
+    const minimumBoardSize = Math.min(240, Math.max(160, Math.min(playfield.width, playfield.height)));
+    const minimumSidePanelWidth = 176;
+    const canUseSidePanels = playfield.width >= minimumBoardSize + minimumSidePanelWidth * 2 + gap * 2;
+
+    let eventPanel: Rect;
+    let resourcePanel: Rect;
+    let boardPanel: Rect;
+    if (canUseSidePanels) {
+      const boardSize = Math.min(
+        playfield.height,
+        playfield.width - minimumSidePanelWidth * 2 - gap * 2,
+      );
+      const sidePanelWidth = clamp(
+        Math.round((playfield.width - boardSize - gap * 2) / 2),
+        minimumSidePanelWidth,
+        260,
+      );
+      const clusterWidth = sidePanelWidth * 2 + boardSize + gap * 2;
+      const clusterX = playfield.x + Math.max(0, Math.round((playfield.width - clusterWidth) / 2));
+      const clusterY = playfield.y + Math.max(0, Math.round((playfield.height - boardSize) / 2));
+
+      resourcePanel = {
+        x: clusterX,
+        y: clusterY,
+        width: sidePanelWidth,
+        height: boardSize,
+      };
+      boardPanel = {
+        x: resourcePanel.x + resourcePanel.width + gap,
+        y: clusterY,
+        width: boardSize,
+        height: boardSize,
+      };
+      eventPanel = {
+        x: boardPanel.x + boardPanel.width + gap,
+        y: clusterY,
+        width: sidePanelWidth,
+        height: boardSize,
+      };
+    } else {
+      let resourcePanelHeight = clamp(Math.round(playfield.height * 0.28), 176, 232);
+      let eventPanelHeight = clamp(Math.round(playfield.height * 0.16), 84, 124);
+      let availableBoardHeight = playfield.height - eventPanelHeight - resourcePanelHeight - gap * 2;
+      if (availableBoardHeight < minimumBoardSize) {
+        const needed = minimumBoardSize - availableBoardHeight;
+        const resourceReduction = Math.min(Math.max(0, resourcePanelHeight - 136), Math.round(needed * 0.7));
+        resourcePanelHeight -= resourceReduction;
+        eventPanelHeight -= Math.min(Math.max(0, eventPanelHeight - 72), needed - resourceReduction);
+        availableBoardHeight = playfield.height - eventPanelHeight - resourcePanelHeight - gap * 2;
+      }
+
+      const boardSize = Math.min(playfield.width, Math.max(minimumBoardSize, availableBoardHeight));
+      const clusterHeight = resourcePanelHeight + boardSize + eventPanelHeight + gap * 2;
+      const clusterX = playfield.x + Math.max(0, Math.round((playfield.width - boardSize) / 2));
+      const clusterY = playfield.y + Math.max(0, Math.round((playfield.height - clusterHeight) / 2));
+
+      resourcePanel = {
+        x: clusterX,
+        y: clusterY,
+        width: boardSize,
+        height: resourcePanelHeight,
+      };
+      boardPanel = {
+        x: clusterX,
+        y: clusterY + resourcePanelHeight + gap,
+        width: boardSize,
+        height: boardSize,
+      };
+      eventPanel = {
+        x: clusterX,
+        y: boardPanel.y + boardPanel.height + gap,
+        width: boardSize,
+        height: eventPanelHeight,
+      };
+    }
 
     const gridInset = Math.max(12, Math.round(boardPanel.width * 0.03));
     const gridRect: Rect = {
@@ -1241,6 +1397,8 @@ export class Renderer {
     return {
       viewport,
       topHud,
+      eventPanel,
+      resourcePanel,
       boardPanel,
       gridRect,
       bottomDock,

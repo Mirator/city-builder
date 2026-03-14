@@ -134,13 +134,17 @@ describe("Renderer", () => {
         continue;
       }
       expect(rectWithin(layout.topHud, layout.viewport)).toBe(true);
+      expect(rectWithin(layout.eventPanel, layout.viewport)).toBe(true);
+      expect(rectWithin(layout.resourcePanel, layout.viewport)).toBe(true);
       expect(rectWithin(layout.boardPanel, layout.viewport)).toBe(true);
       expect(rectWithin(layout.gridRect, layout.viewport)).toBe(true);
       expect(rectWithin(layout.bottomDock, layout.viewport)).toBe(true);
       expect(rectWithin(layout.actionRow, layout.viewport)).toBe(true);
       expect(rectWithin(layout.handArea, layout.viewport)).toBe(true);
-      expect(layout.topHud.height).toBeGreaterThanOrEqual(132);
-      expect(layout.topHud.height).toBeLessThanOrEqual(176);
+      expect(layout.resourcePanel.x + layout.resourcePanel.width).toBeLessThan(layout.boardPanel.x);
+      expect(layout.boardPanel.x + layout.boardPanel.width).toBeLessThan(layout.eventPanel.x);
+      expect(layout.topHud.height).toBeGreaterThanOrEqual(54);
+      expect(layout.topHud.height).toBeLessThanOrEqual(66);
       expect(layout.bottomDock.height).toBeGreaterThanOrEqual(136);
       expect(layout.bottomDock.height).toBeLessThanOrEqual(188);
     }
@@ -251,7 +255,20 @@ describe("Renderer", () => {
     expect(texts.some((value) => value.includes("Delta"))).toBe(false);
   });
 
-  it("renders recent event details and immediate impact chips in the top banner", () => {
+  it("keeps the top hud title-only", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    const ui = createUiState();
+
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const texts = context.fillText.mock.calls.map((call) => String(call[0]));
+    expect(texts).toContain("Card City Builder");
+    expect(texts).not.toContain("Sustain a balanced city for three turns");
+  });
+
+  it("renders recent event details and immediate impact chips in the event panel", () => {
     const { renderer, context } = createRendererHarness();
     const state = createState();
     state.lastEventName = "Tax Windfall";
@@ -263,11 +280,11 @@ describe("Renderer", () => {
 
     const texts = context.fillText.mock.calls.map((call) => String(call[0]));
     expect(texts).toContain("Tax Windfall");
-    expect(texts).toContain("Unexpected tax surplus boosts the treasury.");
+    expect(texts.some((value) => value.includes("Unexpected tax surplus"))).toBe(true);
     expect(texts).toContain("Gold +8");
   });
 
-  it("renders next-turn modifier copy in the event banner", () => {
+  it("renders next-turn modifier copy in the event panel", () => {
     const { renderer, context } = createRendererHarness();
     const state = createState();
     state.lastEventName = "Housing Grant";
