@@ -14,7 +14,7 @@ describe("AdjacencySystem", () => {
     placeCard(grid, x + 1, y + 1, "factory");
 
     const yieldFromAdjacency = calculateAdjacencyYield(grid, CARD_DATABASE);
-    expect(yieldFromAdjacency.population).toBe(3);
+    expect(yieldFromAdjacency.population).toBe(2);
     expect(yieldFromAdjacency.happiness).toBe(0);
   });
 });

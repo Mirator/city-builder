@@ -238,16 +238,16 @@ export class Renderer {
     this.ctx.fillStyle = "#5f4b3d";
     this.ctx.font = "500 12px Segoe UI";
     this.ctx.fillText(
-      trimForWidth(this.ctx, "Single-canvas desktop prototype", titleWidth - 6),
+      trimForWidth(this.ctx, "Sustain a balanced city for three turns", titleWidth - 6),
       topHud.x + inset,
       topHud.y + 39,
     );
 
     const deltas = {
-      gold: state.lastTurnBreakdown.total.gold,
-      population: state.lastTurnBreakdown.total.population,
-      happiness: state.lastTurnBreakdown.total.happiness - state.lastTurnBreakdown.pollutionPenalty,
-      pollution: state.lastTurnBreakdown.total.pollution,
+      gold: state.lastTurnBreakdown.final.gold,
+      population: state.lastTurnBreakdown.final.population,
+      happiness: state.lastTurnBreakdown.final.happiness,
+      pollution: state.lastTurnBreakdown.final.pollution,
     };
     const resources = [
       { key: "Gold", value: state.resources.gold, delta: deltas.gold },
@@ -573,10 +573,10 @@ export class Renderer {
       if (cardId) {
         const card = this.cardDatabase[cardId];
         if (card) {
-          base.gold = card.baseYield.gold - card.cost;
+          base.gold = card.baseYield.gold + (card.upkeep?.gold ?? 0) - card.cost;
           base.population = card.baseYield.population;
-          base.happiness = card.baseYield.happiness;
-          base.pollution = card.baseYield.pollution;
+          base.happiness = card.baseYield.happiness + (card.upkeep?.happiness ?? 0);
+          base.pollution = card.baseYield.pollution + (card.upkeep?.pollution ?? 0);
         }
       }
     }
@@ -720,9 +720,10 @@ export class Renderer {
         rect.x + 8,
         rect.y + (compactCardText ? 32 : 37),
       );
+      const upkeep = card.upkeep?.gold ? ` | Upkeep ${formatResourceDelta(card.upkeep.gold)}` : "";
       const yields = trimForWidth(
         this.ctx,
-        `G ${formatResourceDelta(card.baseYield.gold)}  P ${formatResourceDelta(card.baseYield.population)}  H ${formatResourceDelta(card.baseYield.happiness)}  Pol ${formatResourceDelta(card.baseYield.pollution)}`,
+        `G ${formatResourceDelta(card.baseYield.gold)}  P ${formatResourceDelta(card.baseYield.population)}  H ${formatResourceDelta(card.baseYield.happiness)}  Pol ${formatResourceDelta(card.baseYield.pollution)}${upkeep}`,
         rect.width - 16,
       );
       this.ctx.fillText(
@@ -751,7 +752,7 @@ export class Renderer {
       x: this.viewportWidth - 360,
       y: layout.topHud.y + layout.topHud.height + 12,
       width: 348,
-      height: 176,
+      height: 194,
     };
     drawRoundedRect(this.ctx, rect, 12, "rgba(255, 250, 239, 0.95)", "rgba(165, 129, 89, 0.55)");
     this.ctx.fillStyle = "#2f241d";
@@ -762,7 +763,8 @@ export class Renderer {
     this.ctx.fillText("2) Hover/move cursor on board to inspect impact.", rect.x + 12, rect.y + 62);
     this.ctx.fillText("3) Click/Enter to place selected card.", rect.x + 12, rect.y + 82);
     this.ctx.fillText("4) End turn with E or End Turn button.", rect.x + 12, rect.y + 102);
-    this.ctx.fillText("5) Open dev overlay with F1.", rect.x + 12, rect.y + 122);
+    this.ctx.fillText("5) Balance population with happiness and pollution.", rect.x + 12, rect.y + 122);
+    this.ctx.fillText("6) Open dev overlay with F1.", rect.x + 12, rect.y + 142);
 
     const closeRect: Rect = {
       x: rect.x + rect.width - 110,
@@ -848,16 +850,18 @@ export class Renderer {
     this.ctx.fillText("Turn Breakdown", leftTextX, textY);
     textY += 22;
     this.ctx.font = "600 13px Segoe UI";
-    const total = state.lastTurnBreakdown.total;
+    const total = state.lastTurnBreakdown.final;
     const breakdownLines = [
       `Base Gold: ${formatResourceDelta(state.lastTurnBreakdown.base.gold)}`,
       `Adj Gold: ${formatResourceDelta(state.lastTurnBreakdown.adjacency.gold)}`,
+      `Upkeep Gold: ${formatResourceDelta(state.lastTurnBreakdown.upkeep.gold)}`,
       `Mod Gold: ${formatResourceDelta(state.lastTurnBreakdown.modifiers.gold)}`,
-      `Total Gold: ${formatResourceDelta(total.gold)}`,
-      `Total Pop: ${formatResourceDelta(total.population)}`,
-      `Total Happ: ${formatResourceDelta(total.happiness - state.lastTurnBreakdown.pollutionPenalty)}`,
-      `Total Poll: ${formatResourceDelta(total.pollution)}`,
-      `Pollution Penalty: -${state.lastTurnBreakdown.pollutionPenalty}`,
+      `Net Gold: ${formatResourceDelta(total.gold)}`,
+      `Net Pop: ${formatResourceDelta(total.population)}`,
+      `Net Happ: ${formatResourceDelta(total.happiness)}`,
+      `Net Poll: ${formatResourceDelta(total.pollution)}`,
+      `Pollution Gold: ${formatResourceDelta(state.lastTurnBreakdown.pollutionPenalty.gold)}`,
+      `Pollution Happ: ${formatResourceDelta(state.lastTurnBreakdown.pollutionPenalty.happiness)}`,
     ];
     for (const line of breakdownLines) {
       this.ctx.fillText(line, leftTextX, textY);
@@ -944,7 +948,8 @@ export class Renderer {
     this.ctx.fillText(`Run ended on turn ${state.turn}`, panel.x + panel.width / 2, panel.y + 62);
 
     const outcomeReason =
-      state.lossReason ?? (won ? "Population target reached." : "The city can no longer sustain itself.");
+      state.lossReason ??
+      (won ? "Balanced city sustained across the final turns." : "The city can no longer sustain itself.");
     this.ctx.font = "600 14px Segoe UI";
     const reasonLines = wrapText(this.ctx, outcomeReason, panel.width - 52);
     let lineY = panel.y + 92;

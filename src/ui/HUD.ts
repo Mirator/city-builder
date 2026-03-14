@@ -40,19 +40,21 @@ export class HUD {
       ),
     ].join("");
 
-    const total = state.lastTurnBreakdown.total;
+    const final = state.lastTurnBreakdown.final;
     this.elements.breakdown.innerHTML = [
       this.kv("Base Gold", formatResourceDelta(state.lastTurnBreakdown.base.gold)),
       this.kv("Adj Gold", formatResourceDelta(state.lastTurnBreakdown.adjacency.gold)),
+      this.kv("Upkeep Gold", formatResourceDelta(state.lastTurnBreakdown.upkeep.gold)),
       this.kv("Mod Gold", formatResourceDelta(state.lastTurnBreakdown.modifiers.gold)),
-      this.kv("Total Gold", formatResourceDelta(total.gold)),
-      this.kv("Total Pop", formatResourceDelta(total.population)),
+      this.kv("Net Gold", formatResourceDelta(final.gold)),
+      this.kv("Net Pop", formatResourceDelta(final.population)),
+      this.kv("Net Happ", formatResourceDelta(final.happiness)),
+      this.kv("Net Poll", formatResourceDelta(final.pollution)),
+      this.kv("Pollution Gold", formatResourceDelta(state.lastTurnBreakdown.pollutionPenalty.gold)),
       this.kv(
-        "Total Happ",
-        formatResourceDelta(total.happiness - state.lastTurnBreakdown.pollutionPenalty),
+        "Pollution Happ",
+        formatResourceDelta(state.lastTurnBreakdown.pollutionPenalty.happiness),
       ),
-      this.kv("Total Poll", formatResourceDelta(total.pollution)),
-      this.kv("Pollution Penalty", `-${state.lastTurnBreakdown.pollutionPenalty}`),
     ].join("");
 
     const statusLine = state.lossReason

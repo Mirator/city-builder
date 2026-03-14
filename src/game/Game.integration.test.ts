@@ -25,8 +25,8 @@ describe("Game integration", () => {
     const state = game.getState();
 
     state.resources.gold = 99;
-    state.hand = ["road_hub", "utility_node"];
-    state.placementsRemaining = 2;
+    state.hand = ["road_hub", "utility_node", "house"];
+    state.placementsRemaining = 3;
 
     const x = state.grid.activeBounds.minX;
     const y = state.grid.activeBounds.minY;
@@ -39,6 +39,7 @@ describe("Game integration", () => {
 
     expect(state.infrastructurePlaced).toBe(2);
     expect(activeGridSize(state.grid)).toBe(6);
+    expect(state.resources.gold).toBe(91);
   });
 
   it("restores a run snapshot with equivalent state", () => {

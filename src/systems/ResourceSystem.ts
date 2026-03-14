@@ -19,6 +19,21 @@ function sumBaseYield(
   return addManyResources(baseValues);
 }
 
+function sumUpkeep(
+  state: GameState,
+  cardDatabase: Record<string, CardDefinition>,
+): Resources {
+  const upkeepValues: Array<Partial<Resources>> = [];
+  for (const placed of getPlacedCards(state.grid)) {
+    const card = cardDatabase[placed.cardId];
+    if (!card?.upkeep) {
+      continue;
+    }
+    upkeepValues.push(card.upkeep);
+  }
+  return addManyResources(upkeepValues);
+}
+
 function sumActiveModifiers(state: GameState): Resources {
   return addManyResources(state.activeModifiers.map((modifier) => modifier.effect));
 }
@@ -38,14 +53,17 @@ export function calculateTurnBreakdown(
 ): TurnBreakdown {
   const base = sumBaseYield(state, cardDatabase);
   const adjacency = calculateAdjacencyYield(state.grid, cardDatabase);
+  const upkeep = sumUpkeep(state, cardDatabase);
   const modifiers = sumActiveModifiers(state);
-  const total = addManyResources([base, adjacency, modifiers]);
+  const total = addManyResources([base, adjacency, upkeep, modifiers]);
   return {
     base,
     adjacency,
+    upkeep,
     modifiers,
     total,
-    pollutionPenalty: 0,
+    pollutionPenalty: zeroResources(),
+    final: total,
   };
 }
 
@@ -55,26 +73,38 @@ export function resolveTurnResources(
   cardDatabase: Record<string, CardDefinition>,
 ): TurnBreakdown {
   const breakdown = calculateTurnBreakdown(state, cardDatabase);
-  let updatedResources = addResources(state.resources, breakdown.total);
+  const startingResources = { ...state.resources };
+  let updatedResources = addResources(startingResources, breakdown.total);
   updatedResources = clampPollution(updatedResources);
 
-  const pollutionPenalty = Math.floor(updatedResources.pollution / config.pollutionPenaltyStep);
-  updatedResources.happiness -= pollutionPenalty;
+  const pollutionPenalty = calculatePollutionPenalty(
+    updatedResources.pollution,
+    config.pollutionPenaltyStep,
+  );
+  updatedResources = addResources(updatedResources, pollutionPenalty);
 
   state.resources = updatedResources;
   consumeActiveModifiers(state);
 
+  const final = {
+    gold: updatedResources.gold - startingResources.gold,
+    population: updatedResources.population - startingResources.population,
+    happiness: updatedResources.happiness - startingResources.happiness,
+    pollution: updatedResources.pollution - startingResources.pollution,
+  };
+
   const finalBreakdown: TurnBreakdown = {
     ...breakdown,
     pollutionPenalty,
+    final,
   };
   state.lastTurnBreakdown = finalBreakdown;
   state.log.unshift(
-    `Turn ${state.turn} resolved: G ${formatSigned(finalBreakdown.total.gold)}, P ${formatSigned(
-      finalBreakdown.total.population,
-    )}, H ${formatSigned(
-      finalBreakdown.total.happiness - finalBreakdown.pollutionPenalty,
-    )}, Pol ${formatSigned(finalBreakdown.total.pollution)}`,
+    `Turn ${state.turn} resolved: G ${formatSigned(finalBreakdown.final.gold)}, P ${formatSigned(
+      finalBreakdown.final.population,
+    )}, H ${formatSigned(finalBreakdown.final.happiness)}, Pol ${formatSigned(
+      finalBreakdown.final.pollution,
+    )}`,
   );
   state.log = state.log.slice(0, 10);
   return finalBreakdown;
@@ -84,9 +114,21 @@ export function emptyBreakdown(): TurnBreakdown {
   return {
     base: zeroResources(),
     adjacency: zeroResources(),
+    upkeep: zeroResources(),
     modifiers: zeroResources(),
     total: zeroResources(),
-    pollutionPenalty: 0,
+    pollutionPenalty: zeroResources(),
+    final: zeroResources(),
+  };
+}
+
+function calculatePollutionPenalty(pollution: number, step: number): Resources {
+  const bands = Math.floor(Math.max(0, pollution) / step);
+  return {
+    gold: bands >= 2 ? -(bands - 1) : 0,
+    population: 0,
+    happiness: bands > 0 ? -bands : 0,
+    pollution: 0,
   };
 }
 

@@ -7,6 +7,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     description: "Unexpected tax surplus boosts the treasury.",
     effectType: "immediate",
     payload: { gold: 8 },
+    weightTags: ["stability", "infrastructure"],
+    minTurn: 1,
   },
   {
     id: "civic_festival",
@@ -14,6 +16,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     description: "Public celebrations increase city morale.",
     effectType: "immediate",
     payload: { happiness: 8 },
+    weightTags: ["services", "culture", "happiness_low"],
+    minTurn: 1,
   },
   {
     id: "labor_strike",
@@ -21,6 +25,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     description: "Industrial disruption hurts city revenue.",
     effectType: "immediate",
     payload: { gold: -7 },
+    weightTags: ["industry"],
+    minTurn: 6,
   },
   {
     id: "smog_alert",
@@ -28,6 +34,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     description: "Air quality decline increases pollution and stress.",
     effectType: "immediate",
     payload: { pollution: 10, happiness: -2 },
+    weightTags: ["industry", "pollution_high"],
+    minTurn: 6,
   },
   {
     id: "housing_grant",
@@ -36,6 +44,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     effectType: "turnModifier",
     payload: { population: 4 },
     durationTurns: 1,
+    weightTags: ["residential", "growth"],
+    minTurn: 1,
   },
   {
     id: "market_boom",
@@ -44,6 +54,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     effectType: "turnModifier",
     payload: { gold: 5 },
     durationTurns: 1,
+    weightTags: ["services", "culture", "stability"],
+    minTurn: 6,
   },
   {
     id: "maintenance_shutdown",
@@ -52,6 +64,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     effectType: "turnModifier",
     payload: { gold: -4, happiness: -1 },
     durationTurns: 1,
+    weightTags: ["infrastructure", "industry"],
+    minTurn: 1,
   },
   {
     id: "cleanup_grant",
@@ -59,6 +73,8 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     description: "Regional funds reduce accumulated pollution.",
     effectType: "immediate",
     payload: { pollution: -8 },
+    weightTags: ["pollution_high", "services", "culture"],
+    minTurn: 6,
   },
 ];
 

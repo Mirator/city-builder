@@ -63,26 +63,38 @@ export interface ActiveEventModifier {
 export interface TurnBreakdown {
   base: Resources;
   adjacency: Resources;
+  upkeep: Resources;
   modifiers: Resources;
   total: Resources;
-  pollutionPenalty: number;
+  pollutionPenalty: Resources;
+  final: Resources;
 }
 
 export type GameStatus = "running" | "won" | "lost";
 export type GamePhase = "draw" | "placement" | "resolution" | "end" | "game_over";
 
+export interface VictoryRequirements {
+  population: number;
+  minHappiness: number;
+  maxPollution: number;
+  minGold: number;
+  sustainTurns: number;
+}
+
 export interface GameConfig {
   startingResources: Resources;
-  victoryPopulation: number;
+  victoryRequirements: VictoryRequirements;
   populationCollapseTurn: number;
   populationCollapseThreshold: number;
   pollutionPenaltyStep: number;
+  pollutionLossThreshold: number;
   initialGridSize: number;
   maxGridSize: number;
   cardsPerTurn: number;
   maxPlacementsPerTurn: number;
   eventCadenceTurns: number;
   copiesPerCard: number;
+  expansionGoldCost: number;
 }
 
 export interface GameState {
@@ -104,14 +116,15 @@ export interface GameState {
   selectedHandIndex: number | null;
   placementsRemaining: number;
   infrastructurePlaced: number;
+  victoryProgress: number;
   lastTurnBreakdown: TurnBreakdown;
   log: string[];
   rngSeed: number;
 }
 
-export const SAVED_RUN_VERSION = 1;
+export const SAVED_RUN_VERSION = 2;
 
-export interface SavedRunV1 {
+export interface SavedRunSnapshot {
   version: typeof SAVED_RUN_VERSION;
   savedAt: number;
   rngSeed: number;

@@ -25,12 +25,15 @@ function baseState(): GameState {
     selectedHandIndex: null,
     placementsRemaining: 2,
     infrastructurePlaced: 0,
+    victoryProgress: 0,
     lastTurnBreakdown: {
       base: { gold: 0, population: 0, happiness: 0, pollution: 0 },
       adjacency: { gold: 0, population: 0, happiness: 0, pollution: 0 },
+      upkeep: { gold: 0, population: 0, happiness: 0, pollution: 0 },
       modifiers: { gold: 0, population: 0, happiness: 0, pollution: 0 },
       total: { gold: 0, population: 0, happiness: 0, pollution: 0 },
-      pollutionPenalty: 0,
+      pollutionPenalty: { gold: 0, population: 0, happiness: 0, pollution: 0 },
+      final: { gold: 0, population: 0, happiness: 0, pollution: 0 },
     },
     log: [],
     rngSeed: 1,
@@ -54,6 +57,14 @@ describe("WinLossSystem", () => {
     expect(result.reason).toContain("Civil unrest");
   });
 
+  it("flags ecological collapse when pollution reaches the hard cap", () => {
+    const state = baseState();
+    state.resources.pollution = GAME_CONFIG.pollutionLossThreshold;
+    const result = evaluateStatus(state, GAME_CONFIG);
+    expect(result.status).toBe("lost");
+    expect(result.reason).toContain("Ecological collapse");
+  });
+
   it("flags population collapse after threshold turn", () => {
     const state = baseState();
     state.turn = 10;
@@ -63,10 +74,38 @@ describe("WinLossSystem", () => {
     expect(result.reason).toContain("Population collapse");
   });
 
-  it("returns victory when population target is reached", () => {
+  it("returns victory when balanced requirements are sustained long enough", () => {
     const state = baseState();
-    state.resources.population = GAME_CONFIG.victoryPopulation;
+    state.resources.population = GAME_CONFIG.victoryRequirements.population;
+    state.resources.happiness = GAME_CONFIG.victoryRequirements.minHappiness;
+    state.resources.pollution = GAME_CONFIG.victoryRequirements.maxPollution;
+    state.resources.gold = GAME_CONFIG.victoryRequirements.minGold;
+    state.victoryProgress = GAME_CONFIG.victoryRequirements.sustainTurns - 1;
     const result = evaluateStatus(state, GAME_CONFIG);
     expect(result.status).toBe("won");
+    expect(result.victoryProgress).toBe(GAME_CONFIG.victoryRequirements.sustainTurns);
+  });
+
+  it("tracks progress without winning when the city has not sustained balance long enough", () => {
+    const state = baseState();
+    state.resources.population = GAME_CONFIG.victoryRequirements.population;
+    state.resources.happiness = GAME_CONFIG.victoryRequirements.minHappiness;
+    state.resources.pollution = GAME_CONFIG.victoryRequirements.maxPollution;
+    const result = evaluateStatus(state, GAME_CONFIG);
+    expect(result.status).toBe("running");
+    expect(result.victoryProgress).toBe(1);
+  });
+
+  it("does not award victory to population-only cities with weak civic health", () => {
+    const state = baseState();
+    state.resources.population = GAME_CONFIG.victoryRequirements.population + 200;
+    state.resources.happiness = GAME_CONFIG.victoryRequirements.minHappiness - 1;
+    state.resources.pollution = GAME_CONFIG.victoryRequirements.maxPollution + 3;
+    state.victoryProgress = GAME_CONFIG.victoryRequirements.sustainTurns - 1;
+
+    const result = evaluateStatus(state, GAME_CONFIG);
+
+    expect(result.status).toBe("running");
+    expect(result.victoryProgress).toBe(0);
   });
 });

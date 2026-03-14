@@ -11,12 +11,14 @@ Web-first 2D card-based city-builder prototype built with TypeScript, Vite, Canv
 
 ## Gameplay Rules (Implemented)
 
-- Draw 5 cards each turn, place up to 2, discard unplayed cards.
-- Start on a 4x4 active grid, expand by one ring after every 2 Infrastructure placements (up to 10x10).
+- Draw 4 cards each turn, place up to 2, discard unplayed cards.
+- Start on a 4x4 active grid, expand by one ring after every 2 Infrastructure placements, and pay 3 gold for each successful expansion (up to 10x10).
 - Resources: Gold, Population, Happiness, Pollution.
-- Events trigger every 3 turns from a structured event deck.
+- Services, culture buildings, and dense housing can apply upkeep each turn.
+- Pollution escalates in 10-point bands from happiness pressure into gold pressure.
+- Events trigger every 3 turns from a weighted, turn-scaled event deck.
 - Runs auto-save to local storage and resume on reload.
 - New Run can be started from the header button or game-over panel.
 - HUD shows run seed for reproducible playtests.
-- Win: Population >= 1000.
-- Lose: Gold < 0, Happiness <= 0, or Population < 50 after turn 10.
+- Win: Sustain Population >= 600, Happiness >= 45, Pollution <= 25, and Gold >= 0 for 3 turns.
+- Lose: Gold < 0, Happiness <= 0, Pollution >= 50, or Population < 50 after turn 10.

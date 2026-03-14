@@ -1,7 +1,7 @@
 import { SAVED_RUN_VERSION } from "./types";
-import type { GameState, SavedRunV1 } from "./types";
+import type { GameState, SavedRunSnapshot } from "./types";
 
-export const RUN_SAVE_KEY = "ccb.run.v1";
+export const RUN_SAVE_KEY = "ccb.run.v2";
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -15,7 +15,7 @@ export interface DebouncedAction {
   cancel(): void;
 }
 
-export function loadSavedRun(storage = getDefaultStorage()): SavedRunV1 | null {
+export function loadSavedRun(storage = getDefaultStorage()): SavedRunSnapshot | null {
   if (!storage) {
     return null;
   }
@@ -25,7 +25,7 @@ export function loadSavedRun(storage = getDefaultStorage()): SavedRunV1 | null {
       return null;
     }
     const parsed: unknown = JSON.parse(raw);
-    if (!isSavedRunV1(parsed)) {
+    if (!isSavedRunSnapshot(parsed)) {
       return null;
     }
     return parsed;
@@ -34,7 +34,7 @@ export function loadSavedRun(storage = getDefaultStorage()): SavedRunV1 | null {
   }
 }
 
-export function saveRun(snapshot: SavedRunV1, storage = getDefaultStorage()): boolean {
+export function saveRun(snapshot: SavedRunSnapshot, storage = getDefaultStorage()): boolean {
   if (!storage) {
     return false;
   }
@@ -89,7 +89,7 @@ export function createDebouncedAction(action: () => void, delayMs = 250): Deboun
   };
 }
 
-export function isSavedRunV1(value: unknown): value is SavedRunV1 {
+export function isSavedRunSnapshot(value: unknown): value is SavedRunSnapshot {
   if (!isRecord(value)) {
     return false;
   }
@@ -129,6 +129,7 @@ function isGameState(value: unknown): value is GameState {
     (value.selectedHandIndex === null || isFiniteNumber(value.selectedHandIndex)) &&
     isFiniteNumber(value.placementsRemaining) &&
     isFiniteNumber(value.infrastructurePlaced) &&
+    isFiniteNumber(value.victoryProgress) &&
     isTurnBreakdown(lastTurnBreakdown) &&
     isStringArray(value.log) &&
     isFiniteNumber(value.rngSeed)
@@ -156,9 +157,11 @@ function isTurnBreakdown(value: unknown): boolean {
   return (
     isResources(value.base) &&
     isResources(value.adjacency) &&
+    isResources(value.upkeep) &&
     isResources(value.modifiers) &&
     isResources(value.total) &&
-    isFiniteNumber(value.pollutionPenalty)
+    isResources(value.pollutionPenalty) &&
+    isResources(value.final)
   );
 }
 

@@ -97,6 +97,22 @@ export function getOrthogonalNeighbors(grid: GridState, x: number, y: number): N
 }
 
 export function expandGridRing(grid: GridState): boolean {
+  if (!canExpandGridRing(grid)) {
+    return false;
+  }
+
+  const nextBounds = {
+    minX: grid.activeBounds.minX - 1,
+    minY: grid.activeBounds.minY - 1,
+    maxX: grid.activeBounds.maxX + 1,
+    maxY: grid.activeBounds.maxY + 1,
+  };
+
+  grid.activeBounds = nextBounds;
+  return true;
+}
+
+export function canExpandGridRing(grid: GridState): boolean {
   const nextBounds = {
     minX: grid.activeBounds.minX - 1,
     minY: grid.activeBounds.minY - 1,
@@ -112,8 +128,6 @@ export function expandGridRing(grid: GridState): boolean {
   ) {
     return false;
   }
-
-  grid.activeBounds = nextBounds;
   return true;
 }
 

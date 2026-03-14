@@ -38,6 +38,7 @@ export class CardHand {
 
       const adjacencySummary = summarizeAdjacency(card, cardDatabase);
       const affordable = currentGold >= card.cost;
+      const upkeepSummary = card.upkeep?.gold ? ` | Upkeep ${formatSigned(card.upkeep.gold)}` : "";
       button.innerHTML = [
         `<div class="hand-card-top">`,
         `<strong>${index + 1}. ${card.name}</strong>`,
@@ -46,7 +47,7 @@ export class CardHand {
         `<div class="card-badges">`,
         `<span class="category-pill category-pill--${card.category.toLowerCase()}">${card.category}</span>`,
         `</div>`,
-        `<div class="meta">G ${formatSigned(card.baseYield.gold)} | P ${formatSigned(card.baseYield.population)} | H ${formatSigned(card.baseYield.happiness)} | Pol ${formatSigned(card.baseYield.pollution)}</div>`,
+        `<div class="meta">G ${formatSigned(card.baseYield.gold)} | P ${formatSigned(card.baseYield.population)} | H ${formatSigned(card.baseYield.happiness)} | Pol ${formatSigned(card.baseYield.pollution)}${upkeepSummary}</div>`,
         `<div class="meta">${adjacencySummary}</div>`,
         affordable ? "" : `<div class="cost-warning">Need more gold</div>`,
       ].join("");

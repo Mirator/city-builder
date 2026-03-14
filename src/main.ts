@@ -89,11 +89,13 @@ function runBalanceReport(): void {
   const config = game.getConfig();
   const summary = runDeterministicBatch(1, 100, 600);
   const winRate = summary.count > 0 ? Math.round((summary.wins / summary.count) * 100) : 0;
+  const victory = config.victoryRequirements;
   balanceReportOutput = [
     `Runs: ${summary.count} (seeds 1-${summary.count})`,
     `Win rate: ${winRate}%`,
     `Avg turn: ${summary.averageTurn.toFixed(2)} (min ${summary.minTurn}, max ${summary.maxTurn})`,
-    `Config: victory=${config.victoryPopulation}, cards/turn=${config.cardsPerTurn}, placements/turn=${config.maxPlacementsPerTurn}, event every ${config.eventCadenceTurns} turns`,
+    `Goal: pop ${victory.population}, happ >= ${victory.minHappiness}, pollution <= ${victory.maxPollution}, sustain ${victory.sustainTurns}`,
+    `Config: cards/turn=${config.cardsPerTurn}, placements/turn=${config.maxPlacementsPerTurn}, pollution loss=${config.pollutionLossThreshold}, event every ${config.eventCadenceTurns} turns`,
   ].join("\n");
   render();
 }

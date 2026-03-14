@@ -21,8 +21,8 @@ describe("Game placement preview", () => {
     expect(preview.canPlace).toBe(true);
     expect(preview.reason).toBeNull();
     expect(preview.immediateDelta).toEqual({
-      gold: 0,
-      population: 4,
+      gold: -3,
+      population: 3,
       happiness: 3,
       pollution: 0,
     });

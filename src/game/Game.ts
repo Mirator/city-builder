@@ -9,6 +9,7 @@ import { evaluateStatus } from "../systems/WinLossSystem";
 import { addResources, zeroResources } from "../utils/resource";
 import { createSeededRng, shuffleWithRng } from "../utils/rng";
 import {
+  canExpandGridRing,
   createGrid,
   expandGridRing,
   getOrthogonalNeighbors,
@@ -25,7 +26,7 @@ import type {
   PlacementBlockReason,
   PlacementPreview,
   Resources,
-  SavedRunV1,
+  SavedRunSnapshot,
 } from "./types";
 
 type StateListener = (state: GameState) => void;
@@ -76,7 +77,7 @@ export class Game {
     this.emit();
   }
 
-  public toSnapshot(): SavedRunV1 {
+  public toSnapshot(): SavedRunSnapshot {
     return {
       version: SAVED_RUN_VERSION,
       savedAt: Date.now(),
@@ -86,7 +87,7 @@ export class Game {
     };
   }
 
-  public fromSnapshot(snapshot: SavedRunV1): boolean {
+  public fromSnapshot(snapshot: SavedRunSnapshot): boolean {
     if (snapshot.version !== SAVED_RUN_VERSION) {
       return false;
     }
@@ -234,15 +235,26 @@ export class Game {
     this.state.phase = "end";
 
     if (shouldTriggerEvent(this.state.turn, this.config)) {
-      triggerEvent(this.state, this.eventDatabase, this.nextRandom);
+      triggerEvent(this.state, this.eventDatabase, this.cardDatabase, this.nextRandom);
     } else {
       this.state.lastEventName = null;
     }
 
+    const previousVictoryProgress = this.state.victoryProgress;
     const status = evaluateStatus(this.state, this.config);
+    this.state.victoryProgress = status.victoryProgress;
     this.state.status = status.status;
     this.state.lossReason = status.reason;
     if (status.status === "running") {
+      if (status.victoryProgress > 0 && status.victoryProgress !== previousVictoryProgress) {
+        this.state.log.unshift(
+          `Balanced city target held ${status.victoryProgress}/${this.config.victoryRequirements.sustainTurns} turns.`,
+        );
+        this.state.log = this.state.log.slice(0, 10);
+      } else if (previousVictoryProgress > 0 && status.victoryProgress === 0) {
+        this.state.log.unshift("Balanced victory streak broken.");
+        this.state.log = this.state.log.slice(0, 10);
+      }
       this.startNextTurn();
     } else {
       this.state.phase = "game_over";
@@ -270,6 +282,7 @@ export class Game {
   private calculatePlacementDelta(card: CardDefinition, x: number, y: number): Resources {
     let delta = zeroResources();
     delta = addResources(delta, card.baseYield);
+    delta = addResources(delta, card.upkeep ?? {});
     delta.gold -= card.cost;
 
     const neighbors = getOrthogonalNeighbors(this.state.grid, x, y);
@@ -293,6 +306,14 @@ export class Game {
           delta = addResources(delta, rule.effect);
         }
       }
+    }
+
+    const expandsCity =
+      card.category === "Infrastructure" &&
+      (this.state.infrastructurePlaced + 1) % 2 === 0 &&
+      canExpandGridRing(this.state.grid);
+    if (expandsCity) {
+      delta.gold -= this.config.expansionGoldCost;
     }
 
     return delta;
@@ -366,7 +387,10 @@ export class Game {
       if (this.state.infrastructurePlaced % 2 === 0) {
         const expanded = expandGridRing(this.state.grid);
         if (expanded) {
-          this.state.log.unshift("City expanded by one ring.");
+          this.state.resources.gold -= this.config.expansionGoldCost;
+          this.state.log.unshift(
+            `City expanded by one ring. Expansion upkeep cost ${this.config.expansionGoldCost} gold.`,
+          );
           this.state.log = this.state.log.slice(0, 10);
         }
       }
@@ -414,6 +438,7 @@ export class Game {
       selectedHandIndex: null,
       placementsRemaining: this.config.maxPlacementsPerTurn,
       infrastructurePlaced: 0,
+      victoryProgress: 0,
       lastTurnBreakdown: emptyBreakdown(),
       log: ["Run started."],
       rngSeed: seed,

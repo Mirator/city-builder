@@ -34,12 +34,15 @@ function createState(): GameState {
     selectedHandIndex: null,
     placementsRemaining: 2,
     infrastructurePlaced: 0,
+    victoryProgress: 0,
     lastTurnBreakdown: {
       base: { gold: 0, population: 0, happiness: 0, pollution: 0 },
       adjacency: { gold: 0, population: 0, happiness: 0, pollution: 0 },
+      upkeep: { gold: 0, population: 0, happiness: 0, pollution: 0 },
       modifiers: { gold: 0, population: 0, happiness: 0, pollution: 0 },
       total: { gold: 0, population: 0, happiness: 0, pollution: 0 },
-      pollutionPenalty: 0,
+      pollutionPenalty: { gold: 0, population: 0, happiness: 0, pollution: 0 },
+      final: { gold: 0, population: 0, happiness: 0, pollution: 0 },
     },
     log: ["Run started."],
     rngSeed: 123,
@@ -174,7 +177,7 @@ describe("Renderer", () => {
     const state = createState();
     state.status = "won";
     state.phase = "game_over";
-    state.lossReason = "Victory: Population target reached.";
+    state.lossReason = "Victory: Balanced city sustained for 3 turns.";
     const ui = createUiState();
     renderer.resize(1366, 768, 1);
     renderer.render(state, ui);
@@ -198,14 +201,14 @@ describe("Renderer", () => {
     const state = createState();
     state.status = "won";
     state.phase = "game_over";
-    state.lossReason = "Victory: Population target reached.";
+    state.lossReason = "Victory: Balanced city sustained for 3 turns.";
     const ui = createUiState();
     renderer.resize(1366, 768, 1);
     renderer.render(state, ui);
 
     const texts = context.fillText.mock.calls.map((call) => String(call[0]));
     expect(texts).toContain("Victory");
-    expect(texts.some((value) => value.includes("Population target reached"))).toBe(true);
+    expect(texts.some((value) => value.includes("Balanced city sustained"))).toBe(true);
     expect(texts).toContain("A");
     expect(texts).toContain("1");
   });
@@ -214,7 +217,7 @@ describe("Renderer", () => {
     const { renderer, context } = createRendererHarness();
     const state = createState();
     state.resources.gold = 13;
-    state.lastTurnBreakdown.total.gold = -1;
+    state.lastTurnBreakdown.final.gold = -1;
     const ui = createUiState();
 
     renderer.resize(1366, 768, 1);

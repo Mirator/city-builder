@@ -19,5 +19,6 @@ export interface CardDefinition {
   category: CardCategory;
   cost: number;
   baseYield: Resources;
+  upkeep?: Partial<Resources>;
   adjacencyRules: AdjacencyRule[];
 }

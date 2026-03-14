@@ -15,4 +15,9 @@ describe("simulation helpers", () => {
     expect(summary.results).toHaveLength(8);
     expect(summary.minTurn).toBeLessThanOrEqual(summary.maxTurn);
   });
+
+  it("keeps autoplay win rate at or below 50 percent across 100 seeds", () => {
+    const summary = runDeterministicBatch(1, 100, 600);
+    expect(summary.wins).toBeLessThanOrEqual(50);
+  });
 });
