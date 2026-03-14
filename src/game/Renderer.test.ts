@@ -3,6 +3,11 @@ import { Renderer } from "./Renderer";
 import { CARD_DATABASE } from "../cards/CardDatabase";
 import type { GameState } from "./types";
 
+type MockCanvasContext = Partial<CanvasRenderingContext2D> & {
+  fillText: ReturnType<typeof vi.fn>;
+  measureText: ReturnType<typeof vi.fn>;
+};
+
 function createState(): GameState {
   return {
     turn: 1,
@@ -41,14 +46,21 @@ function createState(): GameState {
   };
 }
 
-function createRenderer(): Renderer {
+function createRendererHarness(): { renderer: Renderer; context: MockCanvasContext } {
   const canvas = document.createElement("canvas");
   const context = createMockContext();
   vi.spyOn(canvas, "getContext").mockReturnValue(context as unknown as CanvasRenderingContext2D);
-  return new Renderer(canvas, CARD_DATABASE);
+  return {
+    renderer: new Renderer(canvas, CARD_DATABASE),
+    context,
+  };
 }
 
-function createMockContext(): Partial<CanvasRenderingContext2D> {
+function createRenderer(): Renderer {
+  return createRendererHarness().renderer;
+}
+
+function createMockContext(): MockCanvasContext {
   const gradient = { addColorStop: vi.fn() };
   return {
     setTransform: vi.fn(),
@@ -87,7 +99,7 @@ function createUiState() {
 }
 
 describe("Renderer", () => {
-  it("keeps computed layout inside viewport bounds on common desktop sizes", () => {
+  it("keeps computed layout inside viewport bounds and compact dock limits on desktop sizes", () => {
     const renderer = createRenderer();
     const state = createState();
     const ui = createUiState();
@@ -110,6 +122,10 @@ describe("Renderer", () => {
       expect(rectWithin(layout.bottomDock, layout.viewport)).toBe(true);
       expect(rectWithin(layout.actionRow, layout.viewport)).toBe(true);
       expect(rectWithin(layout.handArea, layout.viewport)).toBe(true);
+      expect(layout.topHud.height).toBeGreaterThanOrEqual(80);
+      expect(layout.topHud.height).toBeLessThanOrEqual(112);
+      expect(layout.bottomDock.height).toBeGreaterThanOrEqual(136);
+      expect(layout.bottomDock.height).toBeLessThanOrEqual(188);
     }
   });
 
@@ -129,7 +145,7 @@ describe("Renderer", () => {
     const boardHit = renderer.hitTest(layout.gridRect.x + 20, layout.gridRect.y + 20);
     expect(boardHit.type).toBe("board_tile");
 
-    const handHit = renderer.hitTest(layout.handArea.x + 12, layout.handArea.y + 12);
+    const handHit = renderer.hitTest(layout.handArea.x + 100, layout.handArea.y + 20);
     expect(handHit).toEqual({ type: "hand_card", index: 0 });
 
     const actionHit = renderer.hitTest(layout.actionRow.x + layout.actionRow.width - 20, layout.actionRow.y + 10);
@@ -152,6 +168,103 @@ describe("Renderer", () => {
     const boardHit = renderer.hitTest(683, 384);
     expect(boardHit).toEqual({ type: "none" });
   });
+
+  it("locks interactions to game-over modal and exposes New Run action", () => {
+    const renderer = createRenderer();
+    const state = createState();
+    state.status = "won";
+    state.phase = "game_over";
+    state.lossReason = "Victory: Population target reached.";
+    const ui = createUiState();
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const panelWidth = clamp(Math.round(1366 * 0.44), 360, 620);
+    const panelHeight = 236;
+    const panelX = Math.round((1366 - panelWidth) / 2);
+    const panelY = Math.round((768 - panelHeight) / 2);
+    const buttonX = panelX + Math.round((panelWidth - 156) / 2) + 12;
+    const buttonY = panelY + panelHeight - 30;
+
+    const newRunHit = renderer.hitTest(buttonX, buttonY);
+    expect(newRunHit).toEqual({ type: "action", action: "new_run" });
+
+    const boardHit = renderer.hitTest(683, 384);
+    expect(boardHit).toEqual({ type: "none" });
+  });
+
+  it("renders outcome copy and board coordinates", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    state.status = "won";
+    state.phase = "game_over";
+    state.lossReason = "Victory: Population target reached.";
+    const ui = createUiState();
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const texts = context.fillText.mock.calls.map((call) => String(call[0]));
+    expect(texts).toContain("Victory");
+    expect(texts.some((value) => value.includes("Population target reached"))).toBe(true);
+    expect(texts).toContain("A");
+    expect(texts).toContain("1");
+  });
+
+  it("renders resource delta inline with value and removes Delta label text", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    state.resources.gold = 13;
+    state.lastTurnBreakdown.total.gold = -1;
+    const ui = createUiState();
+
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const calls = context.fillText.mock.calls;
+    const valueCall = calls.find((call) => String(call[0]) === "13");
+    const deltaCall = calls.find((call) => String(call[0]) === "-1");
+    expect(valueCall).toBeDefined();
+    expect(deltaCall).toBeDefined();
+    if (!valueCall || !deltaCall) {
+      return;
+    }
+    expect(valueCall[2]).toBe(deltaCall[2]);
+
+    const texts = calls.map((call) => String(call[0]));
+    expect(texts.some((value) => value.includes("Delta"))).toBe(false);
+  });
+
+  it("renders placement breakdown without tile label", () => {
+    const { renderer, context } = createRendererHarness();
+    const state = createState();
+    state.selectedHandIndex = 0;
+    const ui = {
+      ...createUiState(),
+      overlays: {
+        tilePreviews: [],
+        cursorPreview: {
+          handIndex: 0,
+          x: 4,
+          y: 5,
+          cardId: "house",
+          cardName: "House",
+          canPlace: true,
+          reason: null,
+          immediateDelta: { gold: -1, population: 2, happiness: 2, pollution: 0 },
+        },
+      },
+    };
+
+    renderer.resize(1366, 768, 1);
+    renderer.render(state, ui);
+
+    const texts = context.fillText.mock.calls.map((call) => String(call[0]));
+    expect(texts).toContain("Placement Impact");
+    expect(texts).toContain("Base");
+    expect(texts).toContain("Neighbors");
+    expect(texts).toContain("Total");
+    expect(texts.some((value) => value.startsWith("Tile ("))).toBe(false);
+  });
 });
 
 function rectWithin(rect: { x: number; y: number; width: number; height: number }, viewport: { width: number; height: number }): boolean {
@@ -163,4 +276,8 @@ function rectWithin(rect: { x: number; y: number; width: number; height: number 
     rect.x + rect.width <= viewport.width &&
     rect.y + rect.height <= viewport.height
   );
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

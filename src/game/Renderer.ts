@@ -1,5 +1,5 @@
 import type { CardDefinition } from "../cards/Card";
-import type { GameState, PlacementPreview } from "./types";
+import type { GameState, PlacementPreview, Resources } from "./types";
 import { formatResourceDelta } from "../utils/resource";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -120,26 +120,32 @@ export class Renderer {
     this.drawHoverPreview(state, ui, layout);
     this.drawHelpOverlay(ui, layout);
     this.drawDevOverlay(state, ui);
+    this.drawOutcomeOverlay(state);
   }
 
   public hitTest(px: number, py: number): UiHitTarget {
-    const ui = this.lastUiState;
-    if (!ui) {
+    if (!this.lastUiState) {
       return { type: "none" };
     }
 
-    const regions = ui.showDevTools ? this.modalHitRegions : this.normalHitRegions;
-    for (let i = regions.length - 1; i >= 0; i -= 1) {
-      if (contains(regions[i].rect, px, py)) {
-        return regions[i].target;
+    if (this.modalHitRegions.length > 0) {
+      for (let i = this.modalHitRegions.length - 1; i >= 0; i -= 1) {
+        if (contains(this.modalHitRegions[i].rect, px, py)) {
+          return this.modalHitRegions[i].target;
+        }
+      }
+      return { type: "none" };
+    }
+
+    for (let i = this.normalHitRegions.length - 1; i >= 0; i -= 1) {
+      if (contains(this.normalHitRegions[i].rect, px, py)) {
+        return this.normalHitRegions[i].target;
       }
     }
 
-    if (!ui.showDevTools) {
-      const tile = this.getTileAtPoint(px, py);
-      if (tile) {
-        return { type: "board_tile", x: tile.x, y: tile.y };
-      }
+    const tile = this.getTileAtPoint(px, py);
+    if (tile) {
+      return { type: "board_tile", x: tile.x, y: tile.y };
     }
 
     return { type: "none" };
@@ -192,24 +198,50 @@ export class Renderer {
     const { topHud } = layout;
     drawRoundedRect(this.ctx, topHud, 14, "rgba(252, 245, 231, 0.95)", "rgba(148, 112, 78, 0.64)");
 
-    const resourceGap = 8;
-    const inset = 12;
-    const titleWidth = Math.min(220, Math.max(160, topHud.width * 0.2));
-    const statusWidth = Math.min(250, Math.max(190, topHud.width * 0.22));
-    const resourcesWidth = Math.max(320, topHud.width - inset * 2 - titleWidth - statusWidth - resourceGap * 2);
-    const resourceCellWidth = (resourcesWidth - resourceGap * 3) / 4;
-    const resourceY = topHud.y + 12;
-    const resourceHeight = 56;
+    const resourceGap = 6;
+    const inset = 10;
+    const resourceHeight = 44;
+    const titleText = "Card City Builder";
 
-    this.ctx.fillStyle = "#2f241d";
-    this.ctx.font = "700 34px Palatino Linotype";
     this.ctx.textAlign = "left";
     this.ctx.textBaseline = "top";
-    this.ctx.fillText("Card City Builder", topHud.x + inset, topHud.y + 8);
+    this.ctx.font = "700 30px Palatino Linotype";
+    const titleTextWidth = this.ctx.measureText(titleText).width;
+
+    let titleWidth = clamp(Math.ceil(titleTextWidth) + 16, 172, Math.round(topHud.width * 0.34));
+    let statusWidth = clamp(Math.round(topHud.width * 0.2), 156, 228);
+    let resourcesWidth = topHud.width - inset * 2 - titleWidth - statusWidth - resourceGap * 2;
+    const minimumResourcesWidth = 250;
+    const minimumTitleWidth = Math.ceil(titleTextWidth) + 12;
+
+    if (resourcesWidth < minimumResourcesWidth) {
+      const statusShrink = Math.min(minimumResourcesWidth - resourcesWidth, statusWidth - 144);
+      statusWidth -= statusShrink;
+      resourcesWidth += statusShrink;
+    }
+
+    if (resourcesWidth < minimumResourcesWidth) {
+      const titleShrink = Math.min(minimumResourcesWidth - resourcesWidth, titleWidth - minimumTitleWidth);
+      titleWidth -= titleShrink;
+      resourcesWidth += titleShrink;
+    }
+
+    resourcesWidth = Math.max(208, resourcesWidth);
+    const resourceCellWidth = Math.max(46, (resourcesWidth - resourceGap * 3) / 4);
+    const compactResources = resourceCellWidth < 138;
+    const resourceY = topHud.y + 8;
+
+    this.ctx.fillStyle = "#2f241d";
+    this.ctx.font = "700 30px Palatino Linotype";
+    this.ctx.fillText(titleText, topHud.x + inset, topHud.y + 6);
 
     this.ctx.fillStyle = "#5f4b3d";
-    this.ctx.font = "500 14px Segoe UI";
-    this.ctx.fillText("Single-canvas desktop prototype", topHud.x + inset, topHud.y + 50);
+    this.ctx.font = "500 12px Segoe UI";
+    this.ctx.fillText(
+      trimForWidth(this.ctx, "Single-canvas desktop prototype", titleWidth - 6),
+      topHud.x + inset,
+      topHud.y + 39,
+    );
 
     const deltas = {
       gold: state.lastTurnBreakdown.total.gold,
@@ -235,44 +267,80 @@ export class Renderer {
       drawRoundedRect(
         this.ctx,
         cellRect,
-        10,
+        9,
         "rgba(255, 251, 243, 0.9)",
         i === 0 ? "rgba(196, 150, 70, 0.6)" : "rgba(145, 112, 78, 0.44)",
       );
       this.ctx.fillStyle = "#6f5645";
-      this.ctx.font = "600 11px Segoe UI";
-      this.ctx.fillText(resources[i].key.toUpperCase(), cellRect.x + 8, cellRect.y + 8);
+      this.ctx.font = compactResources ? "600 9px Segoe UI" : "600 10px Segoe UI";
+      this.ctx.fillText(resources[i].key.toUpperCase(), cellRect.x + 8, cellRect.y + 6);
+
+      const valueText = String(resources[i].value);
+      const deltaText = formatResourceDelta(resources[i].delta);
+      const valueFont = compactResources ? "700 20px Segoe UI" : "700 24px Segoe UI";
+      const baseDeltaFont = compactResources ? "700 12px Segoe UI" : "700 14px Segoe UI";
+      const fallbackDeltaFont = compactResources ? "700 11px Segoe UI" : "700 12px Segoe UI";
+      const secondFallbackDeltaFont = compactResources ? "700 10px Segoe UI" : "700 11px Segoe UI";
+      const valueX = cellRect.x + 8;
+      const valueBaselineY = cellRect.y + resourceHeight - 9;
+
+      this.ctx.textBaseline = "alphabetic";
       this.ctx.fillStyle = "#2f241d";
-      this.ctx.font = "700 30px Segoe UI";
-      this.ctx.fillText(String(resources[i].value), cellRect.x + 8, cellRect.y + 22);
-      this.ctx.font = "600 12px Segoe UI";
+      this.ctx.font = valueFont;
+      this.ctx.fillText(valueText, valueX, valueBaselineY);
+      const valueWidth = this.ctx.measureText(valueText).width;
+
+      let deltaFont = baseDeltaFont;
+      let deltaGap = compactResources ? 5 : 6;
+      this.ctx.font = deltaFont;
+      let deltaWidth = this.ctx.measureText(deltaText).width;
+      const deltaRightLimit = cellRect.x + cellRect.width - 8;
+
+      if (valueX + valueWidth + deltaGap + deltaWidth > deltaRightLimit) {
+        deltaFont = fallbackDeltaFont;
+        deltaGap = compactResources ? 4 : 5;
+        this.ctx.font = deltaFont;
+        deltaWidth = this.ctx.measureText(deltaText).width;
+      }
+      if (valueX + valueWidth + deltaGap + deltaWidth > deltaRightLimit) {
+        deltaFont = secondFallbackDeltaFont;
+        deltaGap = 3;
+        this.ctx.font = deltaFont;
+        deltaWidth = this.ctx.measureText(deltaText).width;
+      }
+
+      const deltaX = Math.min(valueX + valueWidth + deltaGap, deltaRightLimit - deltaWidth);
       this.ctx.fillStyle =
         resources[i].delta > 0 ? "#2f7d44" : resources[i].delta < 0 ? "#b34a45" : "#6f5645";
-      this.ctx.fillText(`Δ ${formatResourceDelta(resources[i].delta)}`, cellRect.x + 8, cellRect.y + 44);
+      this.ctx.fillText(deltaText, deltaX, valueBaselineY);
+      this.ctx.textBaseline = "top";
     }
 
     const statusRect: Rect = {
       x: topHud.x + topHud.width - inset - statusWidth,
-      y: topHud.y + 10,
+      y: topHud.y + 8,
       width: statusWidth,
-      height: resourceHeight + 4,
+      height: resourceHeight,
     };
-    drawRoundedRect(this.ctx, statusRect, 10, "rgba(240, 228, 206, 0.8)", "rgba(145, 112, 78, 0.44)");
+    drawRoundedRect(this.ctx, statusRect, 9, "rgba(240, 228, 206, 0.8)", "rgba(145, 112, 78, 0.44)");
     this.ctx.fillStyle = "#2f241d";
-    this.ctx.font = "700 14px Segoe UI";
-    this.ctx.fillText(`Turn ${state.turn}`, statusRect.x + 10, statusRect.y + 8);
-    this.ctx.fillText(`Placements ${state.placementsRemaining}`, statusRect.x + 10, statusRect.y + 27);
-    this.ctx.fillText(`Phase ${state.phase}`, statusRect.x + 10, statusRect.y + 46);
-
-    const statusLineY = topHud.y + topHud.height - 31;
-    this.ctx.fillStyle = "#5b4d42";
-    this.ctx.font = "500 13px Segoe UI";
-    this.ctx.fillText(trimForWidth(this.ctx, ui.sessionStatus, topHud.width - 24), topHud.x + 12, statusLineY);
+    this.ctx.font = compactResources ? "700 12px Segoe UI" : "700 13px Segoe UI";
+    this.ctx.fillText(
+      trimForWidth(this.ctx, `Turn ${state.turn} | Placements ${state.placementsRemaining}`, statusRect.width - 16),
+      statusRect.x + 8,
+      statusRect.y + 8,
+    );
+    this.ctx.font = compactResources ? "600 11px Segoe UI" : "600 12px Segoe UI";
+    this.ctx.fillText(trimForWidth(this.ctx, `Phase ${state.phase}`, statusRect.width - 16), statusRect.x + 8, statusRect.y + 24);
 
     const alertText = ui.feedbackMessage ?? (state.lastEventName ? `Event: ${state.lastEventName}` : "No alerts.");
+    const combinedStatus = ui.feedbackMessage ? ui.feedbackMessage : `${ui.sessionStatus} | ${alertText}`;
+    const lineY = topHud.y + topHud.height - 10;
+    this.ctx.textBaseline = "alphabetic";
     this.ctx.fillStyle = ui.feedbackMessage ? "#b3473e" : "#5b4d42";
-    this.ctx.font = "600 13px Segoe UI";
-    this.ctx.fillText(trimForWidth(this.ctx, alertText, topHud.width - 24), topHud.x + 12, statusLineY + 16);
+    this.ctx.font = "600 12px Segoe UI";
+    this.ctx.fillText(trimForWidth(this.ctx, combinedStatus, topHud.width - 20), topHud.x + 10, lineY);
+    this.ctx.textBaseline = "top";
   }
 
   private drawBoard(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
@@ -295,6 +363,19 @@ export class Renderer {
       }
     }
 
+    this.ctx.fillStyle = "rgba(244, 226, 189, 0.9)";
+    this.ctx.font = "600 11px Segoe UI";
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    for (let x = 0; x < state.grid.maxSize; x += 1) {
+      const label = String.fromCharCode(65 + x);
+      this.ctx.fillText(label, gridRect.x + x * this.tileSize + this.tileSize / 2, gridRect.y - 7);
+    }
+    this.ctx.textAlign = "right";
+    for (let y = 0; y < state.grid.maxSize; y += 1) {
+      this.ctx.fillText(String(y + 1), gridRect.x - 8, gridRect.y + y * this.tileSize + this.tileSize / 2);
+    }
+
     const { minX, minY, maxX, maxY } = state.grid.activeBounds;
     for (let y = 0; y < state.grid.maxSize; y += 1) {
       for (let x = 0; x < state.grid.maxSize; x += 1) {
@@ -304,12 +385,12 @@ export class Renderer {
         const cardId = state.grid.tiles[y][x].cardId;
 
         if (!unlocked) {
-          this.ctx.fillStyle = "#172f45";
+          this.ctx.fillStyle = "#10243a";
         } else if (cardId) {
           const card = this.cardDatabase[cardId];
           this.ctx.fillStyle = card ? CATEGORY_COLORS[card.category] ?? "#8ea1b3" : "#8ea1b3";
         } else {
-          this.ctx.fillStyle = "#1f3e58";
+          this.ctx.fillStyle = "#2a5674";
         }
         this.ctx.fillRect(sx + 1, sy + 1, this.tileSize - 2, this.tileSize - 2);
 
@@ -336,6 +417,21 @@ export class Renderer {
       }
     }
 
+    const activeBoundsRect: Rect = {
+      x: gridRect.x + minX * this.tileSize,
+      y: gridRect.y + minY * this.tileSize,
+      width: (maxX - minX + 1) * this.tileSize,
+      height: (maxY - minY + 1) * this.tileSize,
+    };
+    this.ctx.strokeStyle = "rgba(246, 216, 140, 0.95)";
+    this.ctx.lineWidth = 2.4;
+    this.ctx.strokeRect(
+      activeBoundsRect.x + 1.2,
+      activeBoundsRect.y + 1.2,
+      activeBoundsRect.width - 2.4,
+      activeBoundsRect.height - 2.4,
+    );
+
     const cursorPreview = ui.overlays?.cursorPreview ?? null;
     const cursorColor = cursorPreview === null ? "#ffe66d" : cursorPreview.canPlace ? "#62d394" : "#e85d75";
     const cursorSx = gridRect.x + state.cursor.x * this.tileSize;
@@ -343,6 +439,9 @@ export class Renderer {
     this.ctx.strokeStyle = cursorColor;
     this.ctx.lineWidth = 3;
     this.ctx.strokeRect(cursorSx + 2, cursorSy + 2, this.tileSize - 4, this.tileSize - 4);
+
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "alphabetic";
   }
 
   private drawHoverPreview(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
@@ -354,8 +453,9 @@ export class Renderer {
       return;
     }
 
-    const tooltipWidth = 246;
-    const tooltipHeight = 122;
+    const canShowBreakdown = preview.canPlace || preview.reason === "insufficient_gold";
+    const tooltipWidth = 292;
+    const tooltipHeight = canShowBreakdown ? 170 : 104;
     const anchorX = layout.gridRect.x + (preview.x + 1) * this.tileSize + 8;
     const anchorY = layout.gridRect.y + preview.y * this.tileSize + 8;
     const x = clamp(anchorX, 12, this.viewportWidth - tooltipWidth - 12);
@@ -369,23 +469,130 @@ export class Renderer {
       preview.canPlace ? "rgba(92, 164, 108, 0.55)" : "rgba(182, 76, 72, 0.55)",
     );
     this.ctx.fillStyle = "#31261f";
-    this.ctx.font = "700 13px Segoe UI";
+    this.ctx.font = "700 14px Segoe UI";
     this.ctx.fillText(
       preview.canPlace ? "Placement Impact" : "Placement Blocked",
       x + 10,
       y + 9,
     );
-    this.ctx.font = "600 12px Segoe UI";
-    this.ctx.fillText(`Tile (${preview.x}, ${preview.y})`, x + 10, y + 30);
-    this.ctx.fillText(`Gold ${formatResourceDelta(preview.immediateDelta.gold)}`, x + 10, y + 52);
-    this.ctx.fillText(`Population ${formatResourceDelta(preview.immediateDelta.population)}`, x + 10, y + 70);
-    this.ctx.fillText(`Happiness ${formatResourceDelta(preview.immediateDelta.happiness)}`, x + 10, y + 88);
-    this.ctx.fillText(`Pollution ${formatResourceDelta(preview.immediateDelta.pollution)}`, x + 10, y + 106);
+
+    if (!canShowBreakdown) {
+      if (preview.reason) {
+        this.ctx.fillStyle = "#b34a45";
+        this.ctx.font = "600 12px Segoe UI";
+        this.ctx.fillText(reasonLabel(preview.reason), x + 10, y + 34);
+      }
+      return;
+    }
+
     if (!preview.canPlace && preview.reason) {
       this.ctx.fillStyle = "#b34a45";
       this.ctx.font = "600 12px Segoe UI";
-      this.ctx.fillText(reasonLabel(preview.reason), x + 120, y + 106);
+      this.ctx.fillText(reasonLabel(preview.reason), x + 10, y + 30);
     }
+
+    const breakdown = this.buildPlacementBreakdown(state, preview);
+    const tableTop = y + (preview.canPlace ? 32 : 50);
+    const labelX = x + 10;
+    const baseValueX = x + 160;
+    const neighborValueX = x + 228;
+    const totalValueX = x + tooltipWidth - 12;
+
+    this.ctx.strokeStyle = "rgba(126, 104, 85, 0.35)";
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + 10, tableTop + 14);
+    this.ctx.lineTo(x + tooltipWidth - 10, tableTop + 14);
+    this.ctx.stroke();
+
+    this.ctx.textBaseline = "alphabetic";
+    this.ctx.fillStyle = "#6a5748";
+    this.ctx.font = "600 10px Segoe UI";
+    this.ctx.fillText("Base", baseValueX - 28, tableTop + 10);
+    this.ctx.fillText("Neighbors", neighborValueX - 42, tableTop + 10);
+    this.ctx.fillText("Total", totalValueX - 28, tableTop + 10);
+
+    const rows: Array<{ label: string; key: keyof Resources }> = [
+      { label: "Gold", key: "gold" },
+      { label: "Population", key: "population" },
+      { label: "Happiness", key: "happiness" },
+      { label: "Pollution", key: "pollution" },
+    ];
+    const rowStartY = tableTop + 30;
+    const rowStep = 20;
+
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      const rowY = rowStartY + i * rowStep;
+      const baseValue = breakdown.base[row.key];
+      const neighborValue = breakdown.neighbors[row.key];
+      const totalValue = breakdown.total[row.key];
+
+      this.ctx.textAlign = "left";
+      this.ctx.fillStyle = "#31261f";
+      this.ctx.font = "600 12px Segoe UI";
+      this.ctx.fillText(row.label, labelX, rowY);
+
+      this.ctx.textAlign = "right";
+      this.ctx.font = "600 12px Segoe UI";
+      this.ctx.fillStyle = this.previewDeltaColor(baseValue);
+      this.ctx.fillText(formatResourceDelta(baseValue), baseValueX, rowY);
+
+      this.ctx.fillStyle = this.previewDeltaColor(neighborValue);
+      this.ctx.fillText(formatResourceDelta(neighborValue), neighborValueX, rowY);
+
+      this.ctx.font = "700 12px Segoe UI";
+      this.ctx.fillStyle = this.previewDeltaColor(totalValue);
+      this.ctx.fillText(formatResourceDelta(totalValue), totalValueX, rowY);
+    }
+
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "alphabetic";
+  }
+
+  private buildPlacementBreakdown(
+    state: GameState,
+    preview: PlacementPreview,
+  ): { base: Resources; neighbors: Resources; total: Resources } {
+    const total: Resources = {
+      gold: preview.immediateDelta.gold,
+      population: preview.immediateDelta.population,
+      happiness: preview.immediateDelta.happiness,
+      pollution: preview.immediateDelta.pollution,
+    };
+
+    const base: Resources = {
+      gold: 0,
+      population: 0,
+      happiness: 0,
+      pollution: 0,
+    };
+
+    if (state.selectedHandIndex !== null) {
+      const cardId = state.hand[state.selectedHandIndex] ?? null;
+      if (cardId) {
+        const card = this.cardDatabase[cardId];
+        if (card) {
+          base.gold = card.baseYield.gold - card.cost;
+          base.population = card.baseYield.population;
+          base.happiness = card.baseYield.happiness;
+          base.pollution = card.baseYield.pollution;
+        }
+      }
+    }
+
+    const neighbors: Resources = {
+      gold: total.gold - base.gold,
+      population: total.population - base.population,
+      happiness: total.happiness - base.happiness,
+      pollution: total.pollution - base.pollution,
+    };
+
+    return { base, neighbors, total };
+  }
+
+  private previewDeltaColor(value: number): string {
+    return value > 0 ? "#2f7d44" : "#b34a45";
   }
 
   private drawBottomDock(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
@@ -456,28 +663,36 @@ export class Renderer {
     }
 
     const slotCount = Math.max(1, ui.slotCount);
-    const gap = 8;
+    const compactSingleRow = slotCount <= 6;
+    const gap = compactSingleRow ? 10 : 8;
     const minCardWidth = 130;
-    const columns = Math.max(1, Math.min(slotCount, Math.floor((handArea.width + gap) / (minCardWidth + gap))));
+    const columns = compactSingleRow
+      ? slotCount
+      : Math.max(1, Math.min(slotCount, Math.floor((handArea.width + gap) / (minCardWidth + gap))));
     const rows = Math.max(1, Math.ceil(slotCount / columns));
-    const cardWidth = (handArea.width - (columns - 1) * gap) / columns;
+    const naturalCardWidth = (handArea.width - (columns - 1) * gap) / columns;
+    const maxCardWidth = compactSingleRow ? 240 : Number.POSITIVE_INFINITY;
+    const cardWidth = Math.min(maxCardWidth, naturalCardWidth);
     const cardHeight = (handArea.height - (rows - 1) * gap) / rows;
+    const contentWidth = columns * cardWidth + (columns - 1) * gap;
+    const startX = handArea.x + Math.max(0, (handArea.width - contentWidth) / 2);
 
     for (let index = 0; index < slotCount; index += 1) {
       const row = Math.floor(index / columns);
       const col = index % columns;
       const rect: Rect = {
-        x: handArea.x + col * (cardWidth + gap),
+        x: startX + col * (cardWidth + gap),
         y: handArea.y + row * (cardHeight + gap),
         width: cardWidth,
         height: cardHeight,
       };
+      const compactCardText = rect.height < 98 || rect.width < 190;
       const cardId = state.hand[index];
       if (!cardId) {
         drawRoundedRect(this.ctx, rect, 10, "rgba(255, 244, 227, 0.27)", "rgba(255, 255, 255, 0.2)");
         this.ctx.fillStyle = "rgba(245, 229, 205, 0.65)";
-        this.ctx.font = "600 13px Segoe UI";
-        this.ctx.fillText(`${index + 1}. Empty`, rect.x + 10, rect.y + 22);
+        this.ctx.font = compactCardText ? "600 12px Segoe UI" : "600 13px Segoe UI";
+        this.ctx.fillText(`${index + 1}. Empty`, rect.x + 10, rect.y + (compactCardText ? 20 : 22));
         continue;
       }
 
@@ -492,20 +707,33 @@ export class Renderer {
         selected ? "rgba(236, 202, 122, 0.95)" : "rgba(214, 184, 145, 0.8)",
       );
       this.ctx.fillStyle = "#2f241d";
-      this.ctx.font = "700 13px Segoe UI";
-      this.ctx.fillText(`${index + 1}. ${trimForWidth(this.ctx, card.name, rect.width - 18)}`, rect.x + 8, rect.y + 18);
-      this.ctx.fillStyle = "#5c4a3e";
-      this.ctx.font = "600 11px Segoe UI";
-      this.ctx.fillText(`${card.category} | Cost ${card.cost}`, rect.x + 8, rect.y + 37);
+      this.ctx.font = compactCardText ? "700 12px Segoe UI" : "700 13px Segoe UI";
       this.ctx.fillText(
-        `G ${formatResourceDelta(card.baseYield.gold)}  P ${formatResourceDelta(card.baseYield.population)}  H ${formatResourceDelta(card.baseYield.happiness)}  Pol ${formatResourceDelta(card.baseYield.pollution)}`,
+        `${index + 1}. ${trimForWidth(this.ctx, card.name, rect.width - 16)}`,
         rect.x + 8,
-        rect.y + 55,
+        rect.y + (compactCardText ? 16 : 18),
+      );
+      this.ctx.fillStyle = "#5c4a3e";
+      this.ctx.font = compactCardText ? "600 10px Segoe UI" : "600 11px Segoe UI";
+      this.ctx.fillText(
+        trimForWidth(this.ctx, `${card.category} | Cost ${card.cost}`, rect.width - 16),
+        rect.x + 8,
+        rect.y + (compactCardText ? 32 : 37),
+      );
+      const yields = trimForWidth(
+        this.ctx,
+        `G ${formatResourceDelta(card.baseYield.gold)}  P ${formatResourceDelta(card.baseYield.population)}  H ${formatResourceDelta(card.baseYield.happiness)}  Pol ${formatResourceDelta(card.baseYield.pollution)}`,
+        rect.width - 16,
+      );
+      this.ctx.fillText(
+        yields,
+        rect.x + 8,
+        rect.y + (compactCardText ? 48 : 55),
       );
       if (!affordable) {
         this.ctx.fillStyle = "#b44d46";
-        this.ctx.font = "700 12px Segoe UI";
-        this.ctx.fillText("Need more gold", rect.x + 8, rect.y + 74);
+        this.ctx.font = compactCardText ? "700 11px Segoe UI" : "700 12px Segoe UI";
+        this.ctx.fillText("Need more gold", rect.x + 8, rect.y + (compactCardText ? 64 : 74));
       } else {
         this.normalHitRegions.push({
           rect,
@@ -680,6 +908,68 @@ export class Renderer {
     }
   }
 
+  private drawOutcomeOverlay(state: GameState): void {
+    if (state.status === "running") {
+      return;
+    }
+
+    this.ctx.fillStyle = "rgba(16, 20, 28, 0.68)";
+    this.ctx.fillRect(0, 0, this.viewportWidth, this.viewportHeight);
+
+    const panelWidth = clamp(Math.round(this.viewportWidth * 0.44), 360, 620);
+    const panelHeight = 236;
+    const panel: Rect = {
+      x: Math.round((this.viewportWidth - panelWidth) / 2),
+      y: Math.round((this.viewportHeight - panelHeight) / 2),
+      width: panelWidth,
+      height: panelHeight,
+    };
+    const won = state.status === "won";
+    drawRoundedRect(
+      this.ctx,
+      panel,
+      16,
+      "rgba(255, 249, 237, 0.98)",
+      won ? "rgba(102, 169, 108, 0.88)" : "rgba(192, 101, 92, 0.88)",
+    );
+
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "top";
+    this.ctx.fillStyle = won ? "#2f6b3a" : "#873e37";
+    this.ctx.font = "700 38px Palatino Linotype";
+    this.ctx.fillText(won ? "Victory" : "Defeat", panel.x + panel.width / 2, panel.y + 12);
+
+    this.ctx.fillStyle = "#3e2f24";
+    this.ctx.font = "700 16px Segoe UI";
+    this.ctx.fillText(`Run ended on turn ${state.turn}`, panel.x + panel.width / 2, panel.y + 62);
+
+    const outcomeReason =
+      state.lossReason ?? (won ? "Population target reached." : "The city can no longer sustain itself.");
+    this.ctx.font = "600 14px Segoe UI";
+    const reasonLines = wrapText(this.ctx, outcomeReason, panel.width - 52);
+    let lineY = panel.y + 92;
+    for (const line of reasonLines.slice(0, 3)) {
+      this.ctx.fillText(line, panel.x + panel.width / 2, lineY);
+      lineY += 18;
+    }
+
+    this.ctx.font = "600 13px Segoe UI";
+    const resourceSummary = `Gold ${state.resources.gold}   Population ${state.resources.population}   Happiness ${state.resources.happiness}   Pollution ${state.resources.pollution}`;
+    this.ctx.fillText(trimForWidth(this.ctx, resourceSummary, panel.width - 48), panel.x + panel.width / 2, panel.y + 164);
+
+    const newRunRect: Rect = {
+      x: panel.x + Math.round((panel.width - 156) / 2),
+      y: panel.y + panel.height - 46,
+      width: 156,
+      height: 32,
+    };
+    this.drawButton(newRunRect, "New Run", true, "#f8ebd7");
+    this.modalHitRegions.push({
+      rect: newRunRect,
+      target: { type: "action", action: "new_run" },
+    });
+  }
+
   private drawButton(rect: Rect, label: string, enabled: boolean, textColor: string): void {
     drawRoundedRect(
       this.ctx,
@@ -707,15 +997,16 @@ export class Renderer {
 
     const padding = clamp(Math.round(Math.min(viewport.width, viewport.height) * 0.015), 10, 20);
     const gap = clamp(Math.round(Math.min(viewport.width, viewport.height) * 0.012), 8, 14);
-    let topHudHeight = clamp(Math.round(viewport.height * 0.16), 96, 138);
-    let bottomDockHeight = clamp(Math.round(viewport.height * 0.3), 190, 260);
-    const minBoardHeight = 220;
+    let topHudHeight = clamp(Math.round(viewport.height * 0.12), 80, 112);
+    let bottomDockHeight = clamp(Math.round(viewport.height * 0.22), 136, 188);
+    const minBoardHeight = 240;
     const availableHeight = viewport.height - padding * 2;
     const desired = topHudHeight + bottomDockHeight + gap * 2 + minBoardHeight;
     if (desired > availableHeight) {
       const overflow = desired - availableHeight;
-      bottomDockHeight = Math.max(150, bottomDockHeight - Math.round(overflow * 0.7));
-      topHudHeight = Math.max(84, topHudHeight - Math.round(overflow * 0.3));
+      const dockReduction = Math.max(0, Math.min(bottomDockHeight - 120, Math.round(overflow * 0.75)));
+      bottomDockHeight -= dockReduction;
+      topHudHeight = Math.max(80, topHudHeight - (overflow - dockReduction));
     }
 
     const topHud: Rect = {
@@ -732,7 +1023,7 @@ export class Renderer {
     };
 
     const boardAreaY = topHud.y + topHud.height + gap;
-    const boardAreaHeight = Math.max(220, bottomDock.y - gap - boardAreaY);
+    const boardAreaHeight = Math.max(minBoardHeight, bottomDock.y - gap - boardAreaY);
     const boardSize = Math.min(boardAreaHeight, viewport.width - padding * 2);
     const boardPanel: Rect = {
       x: Math.round((viewport.width - boardSize) / 2),
@@ -751,15 +1042,15 @@ export class Renderer {
 
     const actionRow: Rect = {
       x: bottomDock.x + 12,
-      y: bottomDock.y + 10,
+      y: bottomDock.y + 8,
       width: bottomDock.width - 24,
-      height: 44,
+      height: 40,
     };
     const handArea: Rect = {
       x: bottomDock.x + 12,
-      y: actionRow.y + actionRow.height + 8,
+      y: actionRow.y + actionRow.height + 6,
       width: bottomDock.width - 24,
-      height: bottomDock.height - actionRow.height - 20,
+      height: bottomDock.height - actionRow.height - 16,
     };
 
     this.tileSize = gridRect.width / 10;
@@ -871,3 +1162,4 @@ function reasonLabel(reason: PlacementPreview["reason"]): string {
   }
   return "No selection";
 }
+
