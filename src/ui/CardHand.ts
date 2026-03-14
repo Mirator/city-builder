@@ -47,7 +47,7 @@ export class CardHand {
         `<div class="card-badges">`,
         `<span class="category-pill category-pill--${card.category.toLowerCase()}">${card.category}</span>`,
         `</div>`,
-        `<div class="meta">G ${formatSigned(card.baseYield.gold)} | P ${formatSigned(card.baseYield.population)} | H ${formatSigned(card.baseYield.happiness)} | Pol ${formatSigned(card.baseYield.pollution)}${upkeepSummary}</div>`,
+        `<div class="meta">Yield G ${formatSigned(card.baseYield.gold)} | P ${formatSigned(card.baseYield.population)} | H ${formatSigned(card.baseYield.happiness)} | Pol ${formatSigned(card.baseYield.pollution)}${upkeepSummary}</div>`,
         `<div class="meta">${adjacencySummary}</div>`,
         affordable ? "" : `<div class="cost-warning">Need more gold</div>`,
       ].join("");

@@ -328,7 +328,7 @@ describe("Renderer", () => {
     expect(texts).not.toContain("Tax Windfall");
   });
 
-  it("renders placement breakdown without tile label", () => {
+  it("renders placement breakdown with play and adjacency columns", () => {
     const { renderer, context } = createRendererHarness();
     const state = createState();
     state.selectedHandIndex = 0;
@@ -354,9 +354,12 @@ describe("Renderer", () => {
 
     const texts = context.fillText.mock.calls.map((call) => String(call[0]));
     expect(texts).toContain("Placement Impact");
-    expect(texts).toContain("Base");
-    expect(texts).toContain("Neighbors");
+    expect(texts).toContain("Play");
+    expect(texts).toContain("Adjacency");
     expect(texts).toContain("Total");
+    expect(texts.some((value) => value.startsWith("Yield G "))).toBe(true);
+    expect(texts).not.toContain("Base");
+    expect(texts).not.toContain("Neighbors");
     expect(texts.some((value) => value.startsWith("Tile ("))).toBe(false);
   });
 });

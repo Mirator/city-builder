@@ -1,6 +1,8 @@
 import type { CardDefinition } from "../cards/Card";
-import type { GameState, PlacementPreview, Resources } from "./types";
 import { formatResourceDelta } from "../utils/resource";
+import { canExpandGridRing } from "../world/Grid";
+import { GAME_CONFIG } from "./config";
+import type { GameState, PlacementPreview, Resources } from "./types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Residential: "#6bc4e6",
@@ -771,8 +773,8 @@ export class Renderer {
     this.ctx.textBaseline = "alphabetic";
     this.ctx.fillStyle = "#6a5748";
     this.ctx.font = "600 10px Segoe UI";
-    this.ctx.fillText("Base", baseValueX - 28, tableTop + 10);
-    this.ctx.fillText("Neighbors", neighborValueX - 42, tableTop + 10);
+    this.ctx.fillText("Play", baseValueX - 24, tableTop + 10);
+    this.ctx.fillText("Adjacency", neighborValueX - 48, tableTop + 10);
     this.ctx.fillText("Total", totalValueX - 28, tableTop + 10);
 
     const rows: Array<{ label: string; key: keyof Resources }> = [
@@ -787,8 +789,8 @@ export class Renderer {
     for (let i = 0; i < rows.length; i += 1) {
       const row = rows[i];
       const rowY = rowStartY + i * rowStep;
-      const baseValue = breakdown.base[row.key];
-      const neighborValue = breakdown.neighbors[row.key];
+      const baseValue = breakdown.play[row.key];
+      const neighborValue = breakdown.adjacency[row.key];
       const totalValue = breakdown.total[row.key];
 
       this.ctx.textAlign = "left";
@@ -816,7 +818,7 @@ export class Renderer {
   private buildPlacementBreakdown(
     state: GameState,
     preview: PlacementPreview,
-  ): { base: Resources; neighbors: Resources; total: Resources } {
+  ): { play: Resources; adjacency: Resources; total: Resources } {
     const total: Resources = {
       gold: preview.immediateDelta.gold,
       population: preview.immediateDelta.population,
@@ -824,7 +826,7 @@ export class Renderer {
       pollution: preview.immediateDelta.pollution,
     };
 
-    const base: Resources = {
+    const play: Resources = {
       gold: 0,
       population: 0,
       happiness: 0,
@@ -836,26 +838,34 @@ export class Renderer {
       if (cardId) {
         const card = this.cardDatabase[cardId];
         if (card) {
-          base.gold = card.baseYield.gold + (card.upkeep?.gold ?? 0) - card.cost;
-          base.population = card.baseYield.population;
-          base.happiness = card.baseYield.happiness + (card.upkeep?.happiness ?? 0);
-          base.pollution = card.baseYield.pollution + (card.upkeep?.pollution ?? 0);
+          play.gold = card.baseYield.gold + (card.upkeep?.gold ?? 0) - card.cost;
+          play.population = card.baseYield.population + (card.upkeep?.population ?? 0);
+          play.happiness = card.baseYield.happiness + (card.upkeep?.happiness ?? 0);
+          play.pollution = card.baseYield.pollution + (card.upkeep?.pollution ?? 0);
+
+          const expandsCity =
+            card.category === "Infrastructure" &&
+            (state.infrastructurePlaced + 1) % 2 === 0 &&
+            canExpandGridRing(state.grid);
+          if (expandsCity) {
+            play.gold -= GAME_CONFIG.expansionGoldCost;
+          }
         }
       }
     }
 
-    const neighbors: Resources = {
-      gold: total.gold - base.gold,
-      population: total.population - base.population,
-      happiness: total.happiness - base.happiness,
-      pollution: total.pollution - base.pollution,
+    const adjacency: Resources = {
+      gold: total.gold - play.gold,
+      population: total.population - play.population,
+      happiness: total.happiness - play.happiness,
+      pollution: total.pollution - play.pollution,
     };
 
-    return { base, neighbors, total };
+    return { play, adjacency, total };
   }
 
   private previewDeltaColor(value: number): string {
-    return value > 0 ? "#2f7d44" : "#b34a45";
+    return value > 0 ? "#2f7d44" : value < 0 ? "#b34a45" : "#6a5748";
   }
 
   private drawBottomDock(state: GameState, ui: CanvasUiRenderState, layout: CanvasLayout): void {
@@ -986,7 +996,7 @@ export class Renderer {
       const upkeep = card.upkeep?.gold ? ` | Upkeep ${formatResourceDelta(card.upkeep.gold)}` : "";
       const yields = trimForWidth(
         this.ctx,
-        `G ${formatResourceDelta(card.baseYield.gold)}  P ${formatResourceDelta(card.baseYield.population)}  H ${formatResourceDelta(card.baseYield.happiness)}  Pol ${formatResourceDelta(card.baseYield.pollution)}${upkeep}`,
+        `Yield G ${formatResourceDelta(card.baseYield.gold)}  P ${formatResourceDelta(card.baseYield.population)}  H ${formatResourceDelta(card.baseYield.happiness)}  Pol ${formatResourceDelta(card.baseYield.pollution)}${upkeep}`,
         rect.width - 16,
       );
       this.ctx.fillText(
