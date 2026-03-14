@@ -7,56 +7,7 @@
   </head>
   <body>
     <div id="app">
-      <header class="title-bar">
-        <h1>Card City Builder</h1>
-        <button id="btn-new-run" class="primary-btn" type="button">New Run</button>
-      </header>
-      <p id="session-status" class="session-status" aria-live="polite"></p>
-      <main class="layout">
-        <section class="board-panel">
-          <canvas id="game-canvas" width="860" height="640" aria-label="City grid"></canvas>
-        </section>
-        <aside class="side-panel">
-          <section class="panel-block">
-            <h2>Resources</h2>
-            <div id="hud-resources" class="kv-grid"></div>
-          </section>
-          <section class="panel-block">
-            <h2>Run</h2>
-            <div id="hud-run" class="kv-grid"></div>
-          </section>
-          <section class="panel-block">
-            <h2>Turn Breakdown</h2>
-            <div id="hud-breakdown" class="kv-grid"></div>
-          </section>
-          <section class="panel-block">
-            <h2>Events</h2>
-            <div id="hud-event" class="small-text"></div>
-          </section>
-          <section class="panel-block">
-            <h2>Balance Report (Debug)</h2>
-            <button id="btn-run-balance-report" class="primary-btn" type="button">Run Report</button>
-            <pre id="balance-report-output" class="balance-report-output">No report yet.</pre>
-          </section>
-          <section id="game-over-panel" class="panel-block game-over" hidden>
-            <h2>Run Complete</h2>
-            <p id="game-over-message" class="small-text"></p>
-            <button id="btn-new-run-cta" class="primary-btn" type="button">Start New Run</button>
-          </section>
-          <section class="panel-block">
-            <h2>Log</h2>
-            <ul id="hud-log" class="log-list"></ul>
-          </section>
-        </aside>
-      </main>
-      <footer class="hand-panel">
-        <h2>Hand</h2>
-        <div id="card-hand" class="hand-grid"></div>
-        <p class="hint">
-          Controls: Arrow/WASD move cursor, <span id="control-hand-range">1-5</span> select card,
-          Enter place, Esc clear, E end turn.
-        </p>
-      </footer>
+      <canvas id="game-canvas" aria-label="Card City Builder"></canvas>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

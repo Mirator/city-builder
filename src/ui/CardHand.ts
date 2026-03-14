@@ -21,9 +21,9 @@ export class CardHand {
       const cardId = hand[index];
       if (!cardId) {
         const empty = document.createElement("button");
-        empty.className = "hand-card";
+        empty.className = "hand-card hand-card--empty";
         empty.disabled = true;
-        empty.textContent = `${index + 1}. Empty`;
+        empty.textContent = `${index + 1}. Empty slot`;
         this.root.appendChild(empty);
         continue;
       }
@@ -31,32 +31,40 @@ export class CardHand {
       const card = cardDatabase[cardId];
       const button = document.createElement("button");
       button.className = "hand-card";
+      button.setAttribute("aria-pressed", selectedIndex === index ? "true" : "false");
       if (selectedIndex === index) {
         button.classList.add("selected");
       }
+
       const adjacencySummary = summarizeAdjacency(card, cardDatabase);
+      const affordable = currentGold >= card.cost;
       button.innerHTML = [
+        `<div class="hand-card-top">`,
         `<strong>${index + 1}. ${card.name}</strong>`,
-        `<div class="meta">${card.category} | Cost: ${card.cost}</div>`,
-        `<div class="meta">G ${card.baseYield.gold}, P ${card.baseYield.population}, H ${card.baseYield.happiness}, Pol ${card.baseYield.pollution}</div>`,
+        `<span class="cost-badge">Cost ${card.cost}</span>`,
+        `</div>`,
+        `<div class="card-badges">`,
+        `<span class="category-pill category-pill--${card.category.toLowerCase()}">${card.category}</span>`,
+        `</div>`,
+        `<div class="meta">G ${formatSigned(card.baseYield.gold)} | P ${formatSigned(card.baseYield.population)} | H ${formatSigned(card.baseYield.happiness)} | Pol ${formatSigned(card.baseYield.pollution)}</div>`,
         `<div class="meta">${adjacencySummary}</div>`,
+        affordable ? "" : `<div class="cost-warning">Need more gold</div>`,
       ].join("");
-      if (currentGold < card.cost) {
+
+      if (!affordable) {
         button.disabled = true;
       } else {
         button.addEventListener("click", () => this.onSelect(index));
       }
+
       this.root.appendChild(button);
     }
   }
 }
 
-function summarizeAdjacency(
-  card: CardDefinition,
-  cardDatabase: Record<string, CardDefinition>,
-): string {
+function summarizeAdjacency(card: CardDefinition, cardDatabase: Record<string, CardDefinition>): string {
   if (card.adjacencyRules.length === 0) {
-    return "Adj: None";
+    return "Adjacency: none";
   }
 
   const summaries = card.adjacencyRules.slice(0, 2).map((rule) => {
@@ -66,14 +74,17 @@ function summarizeAdjacency(
     const effect = formatEffect(rule.effect);
     return `${target} ${effect}`;
   });
-  const overflow =
-    card.adjacencyRules.length > 2 ? ` (+${card.adjacencyRules.length - 2} more)` : "";
-  return `Adj: ${summaries.join(" | ")}${overflow}`;
+  const overflow = card.adjacencyRules.length > 2 ? ` (+${card.adjacencyRules.length - 2} more)` : "";
+  return `Adjacency: ${summaries.join(" | ")}${overflow}`;
 }
 
 function formatEffect(effect: Partial<Record<"gold" | "population" | "happiness" | "pollution", number>>): string {
   const parts = Object.entries(effect)
     .filter((entry): entry is [string, number] => typeof entry[1] === "number")
-    .map(([resource, amount]) => `${amount >= 0 ? "+" : ""}${amount} ${resource}`);
+    .map(([resource, amount]) => `${formatSigned(amount)} ${resource}`);
   return parts.join(", ");
+}
+
+function formatSigned(value: number): string {
+  return value >= 0 ? `+${value}` : `${value}`;
 }

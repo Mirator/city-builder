@@ -7,6 +7,24 @@ export interface Resources {
   pollution: number;
 }
 
+export type PlacementBlockReason =
+  | "no_selection"
+  | "out_of_bounds"
+  | "locked"
+  | "occupied"
+  | "insufficient_gold";
+
+export interface PlacementPreview {
+  handIndex: number;
+  x: number;
+  y: number;
+  cardId: string | null;
+  cardName: string | null;
+  canPlace: boolean;
+  reason: PlacementBlockReason | null;
+  immediateDelta: Resources;
+}
+
 export interface Cursor {
   x: number;
   y: number;

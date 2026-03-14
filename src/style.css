@@ -1,239 +1,30 @@
 :root {
-  --bg: #121d2b;
-  --bg-panel: #1f2d3c;
-  --bg-panel-2: #26394e;
-  --accent: #f4b942;
-  --accent-2: #4cc9f0;
-  --text: #f5f7fa;
-  --muted: #c2ccd6;
-  --danger: #e85d75;
-  --ok: #62d394;
-  --border: #3b5168;
+  color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: "Trebuchet MS", "Gill Sans", sans-serif;
-  color: var(--text);
-  background:
-    radial-gradient(circle at 15% 20%, rgba(76, 201, 240, 0.18), transparent 32%),
-    radial-gradient(circle at 85% 0%, rgba(244, 185, 66, 0.2), transparent 34%),
-    linear-gradient(160deg, #0f1824 0%, #18283b 45%, #132336 100%);
-}
-
+html,
+body,
 #app {
-  max-width: 1320px;
-  margin: 0 auto;
-  padding: 14px;
-}
-
-.title-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  gap: 12px;
-}
-
-.title-bar h1 {
   margin: 0;
-  font-size: 1.8rem;
-  letter-spacing: 0.08rem;
-  text-transform: uppercase;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
-.primary-btn {
-  border: 1px solid var(--accent);
-  background: linear-gradient(180deg, rgba(244, 185, 66, 0.95) 0%, rgba(220, 154, 32, 0.95) 100%);
-  color: #11202f;
-  font-family: inherit;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.primary-btn:hover {
-  filter: brightness(1.05);
-}
-
-.primary-btn:active {
-  transform: translateY(1px);
-}
-
-.session-status {
-  margin: 0 0 12px;
-  color: var(--muted);
-  min-height: 20px;
-}
-
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 12px;
-}
-
-.board-panel,
-.side-panel,
-.hand-panel {
-  background: linear-gradient(180deg, var(--bg-panel) 0%, var(--bg-panel-2) 100%);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
-}
-
-.board-panel {
-  padding: 10px;
+body {
+  background:
+    radial-gradient(circle at 12% 5%, rgba(245, 223, 187, 0.35), transparent 35%),
+    radial-gradient(circle at 90% 15%, rgba(170, 122, 82, 0.2), transparent 28%),
+    linear-gradient(165deg, #efe4cf 0%, #e6d5b6 45%, #dac5a2 100%);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
 }
 
 #game-canvas {
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-  border: 1px solid #4b6177;
-  background: #162332;
-}
-
-.side-panel {
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.panel-block {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-  background: rgba(15, 29, 43, 0.5);
-}
-
-.panel-block h2 {
-  margin: 0 0 6px;
-  font-size: 0.95rem;
-  letter-spacing: 0.04rem;
-}
-
-.kv-grid {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 4px 8px;
-  align-items: baseline;
-}
-
-.kv-grid .label {
-  color: var(--muted);
-}
-
-.kv-grid .value {
-  text-align: right;
-}
-
-.small-text {
-  color: var(--muted);
-  min-height: 24px;
-}
-
-.game-over .small-text {
-  margin: 0 0 8px;
-}
-
-.balance-report-output {
-  margin: 8px 0 0;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: rgba(10, 20, 30, 0.55);
-  color: var(--muted);
-  font-size: 0.8rem;
-  white-space: pre-wrap;
-}
-
-.log-list {
-  margin: 0;
-  padding-left: 18px;
-  max-height: 128px;
-  overflow: auto;
-  color: var(--muted);
-}
-
-.log-list li + li {
-  margin-top: 4px;
-}
-
-.hand-panel {
-  margin-top: 12px;
-  padding: 10px;
-}
-
-.hand-panel h2 {
-  margin: 0 0 8px;
-  font-size: 1rem;
-}
-
-.hand-grid {
-  display: grid;
-  --hand-columns: 5;
-  grid-template-columns: repeat(var(--hand-columns), minmax(120px, 1fr));
-  gap: 8px;
-}
-
-.hand-card {
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 8px;
-  cursor: pointer;
-  text-align: left;
-  min-height: 92px;
-}
-
-.hand-card strong {
   display: block;
-}
-
-.hand-card .meta {
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin-top: 2px;
-}
-
-.hand-card.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(244, 185, 66, 0.25);
-}
-
-.hand-card:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.hint {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.positive {
-  color: var(--ok);
-}
-
-.negative {
-  color: var(--danger);
-}
-
-@media (max-width: 1080px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .hand-grid {
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  }
+  width: 100vw;
+  height: 100vh;
 }
