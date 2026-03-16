@@ -9,6 +9,12 @@ Web-first 2D card-based city-builder prototype built with TypeScript, Vite, Canv
 - `npm run test`
 - `npm run build`
 
+## GitHub Pages Deployment
+
+- This project deploys automatically with GitHub Actions from Vite build output (`dist/`).
+- In repository settings, set **Pages** source to **GitHub Actions** (one-time setup).
+- Live URL: `https://mirator.github.io/city-builder/`
+
 ## Gameplay Rules (Implemented)
 
 - Draw 4 cards each turn, place up to 2, discard unplayed cards.
